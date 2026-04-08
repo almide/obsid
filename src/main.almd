@@ -1,0 +1,79 @@
+// obsid demo — rotating objects with lighting
+import self as obsid
+
+effect fn main() -> Unit = {
+  let scene = obsid.scene()
+  obsid.set_background(scene, 0.06, 0.06, 0.1)
+
+  let camera = obsid.perspective_camera(60.0, 1.333, 0.1, 100.0)
+  obsid.set_position(camera, 0.0, 3.5, 8.0)
+  obsid.look_at(camera, 0.0, 0.5, 0.0)
+
+  // Lighting
+  let sun = obsid.directional_light(1.0, 0.95, 0.9, 0.5, 1.0, 0.3)
+  obsid.add(scene, sun)
+  let ambient = obsid.ambient_light(0.15, 0.15, 0.2)
+  obsid.add(scene, ambient)
+
+  // Floor (plane_geo is already in XZ plane)
+  let floor = obsid.mesh(
+    obsid.plane_geo(14.0, 14.0),
+    obsid.color_mat(0.18, 0.18, 0.22),
+  )
+  obsid.add(scene, floor)
+
+  // Red cube
+  let cube = obsid.mesh(
+    obsid.box_geo(1.5, 1.5, 1.5),
+    obsid.color_mat(0.91, 0.27, 0.33),
+  )
+  obsid.set_position(cube, -2.5, 0.75, 0.0)
+  obsid.add(scene, cube)
+
+  // Teal sphere
+  let sphere = obsid.mesh(
+    obsid.sphere_geo(1.0, 32, 24),
+    obsid.color_mat(0.10, 0.74, 0.61),
+  )
+  obsid.set_position(sphere, 2.0, 1.0, 0.0)
+  obsid.add(scene, sphere)
+
+  // Yellow cube
+  let small = obsid.mesh(
+    obsid.box_geo(0.8, 0.8, 0.8),
+    obsid.color_mat(0.95, 0.77, 0.06),
+  )
+  obsid.set_position(small, 0.0, 0.4, 2.5)
+  obsid.add(scene, small)
+
+  // Purple sphere
+  let orb = obsid.mesh(
+    obsid.sphere_geo(0.6, 24, 16),
+    obsid.color_mat(0.56, 0.27, 0.68),
+  )
+  obsid.set_position(orb, -0.5, 0.6, -1.5)
+  obsid.add(scene, orb)
+
+  obsid.set_state(0, scene)
+  obsid.set_state(1, camera)
+  obsid.set_state(2, cube)
+  obsid.set_state(3, sphere)
+  obsid.set_state(4, small)
+  obsid.set_state(5, orb)
+}
+
+fn render_frame(time: Float) -> Unit = {
+  let scene = obsid.get_state(0)
+  let camera = obsid.get_state(1)
+  let cube = obsid.get_state(2)
+  let sphere = obsid.get_state(3)
+  let small = obsid.get_state(4)
+  let orb = obsid.get_state(5)
+
+  obsid.set_rotation(cube, time * 0.4, time * 0.6, 0.0)
+  obsid.set_rotation(sphere, 0.0, time * 0.3, 0.0)
+  obsid.set_rotation(small, time * 0.5, time * 0.8, time * 0.3)
+  obsid.set_rotation(orb, time * 0.2, time * 0.7, 0.0)
+
+  obsid.render(scene, camera)
+}

@@ -1,0 +1,87 @@
+// obsid — 3D scene engine for Almide
+//
+// Scene graph API backed by a JS renderer via @extern(wasm).
+// All objects are opaque integer handles managed by the host.
+//
+//   import obsid
+//
+//   let scene = obsid.scene()
+//   let camera = obsid.perspective_camera(60.0, 1.333, 0.1, 100.0)
+//   let cube = obsid.mesh(obsid.box_geo(1.0, 1.0, 1.0), obsid.color_mat(0.9, 0.3, 0.2))
+//   obsid.add(scene, cube)
+//   obsid.render(scene, camera)
+
+// ── State Storage ───────────────────────────────────
+
+@extern(wasm, "obsid", "set_state")
+fn set_state(slot: Int, value: Int) -> Unit
+
+@extern(wasm, "obsid", "get_state")
+fn get_state(slot: Int) -> Int
+
+// ── Scene ───────────────────────────────────────────
+
+@extern(wasm, "obsid", "scene")
+fn scene() -> Int
+
+@extern(wasm, "obsid", "set_background")
+fn set_background(scene: Int, r: Float, g: Float, b: Float) -> Unit
+
+// ── Camera ──────────────────────────────────────────
+
+@extern(wasm, "obsid", "perspective_camera")
+fn perspective_camera(fov: Float, aspect: Float, near: Float, far: Float) -> Int
+
+// ── Geometry ────────────────────────────────────────
+
+@extern(wasm, "obsid", "box_geo")
+fn box_geo(w: Float, h: Float, d: Float) -> Int
+
+@extern(wasm, "obsid", "sphere_geo")
+fn sphere_geo(radius: Float, segments: Int, rings: Int) -> Int
+
+@extern(wasm, "obsid", "plane_geo")
+fn plane_geo(w: Float, h: Float) -> Int
+
+// ── Material ────────────────────────────────────────
+
+@extern(wasm, "obsid", "color_mat")
+fn color_mat(r: Float, g: Float, b: Float) -> Int
+
+@extern(wasm, "obsid", "flat_mat")
+fn flat_mat(r: Float, g: Float, b: Float) -> Int
+
+// ── Mesh ────────────────────────────────────────────
+
+@extern(wasm, "obsid", "mesh")
+fn mesh(geometry: Int, material: Int) -> Int
+
+// ── Object3D Operations ─────────────────────────────
+
+@extern(wasm, "obsid", "add")
+fn add(parent: Int, child: Int) -> Unit
+
+@extern(wasm, "obsid", "set_position")
+fn set_position(obj: Int, x: Float, y: Float, z: Float) -> Unit
+
+@extern(wasm, "obsid", "set_rotation")
+fn set_rotation(obj: Int, x: Float, y: Float, z: Float) -> Unit
+
+@extern(wasm, "obsid", "set_scale")
+fn set_scale(obj: Int, x: Float, y: Float, z: Float) -> Unit
+
+@extern(wasm, "obsid", "look_at")
+fn look_at(obj: Int, x: Float, y: Float, z: Float) -> Unit
+
+// ── Lights ──────────────────────────────────────────
+
+@extern(wasm, "obsid", "directional_light")
+fn directional_light(r: Float, g: Float, b: Float, x: Float, y: Float, z: Float) -> Int
+
+@extern(wasm, "obsid", "ambient_light")
+fn ambient_light(r: Float, g: Float, b: Float) -> Int
+
+// ── Rendering ───────────────────────────────────────
+
+@extern(wasm, "obsid", "render")
+fn render(scene: Int, camera: Int) -> Unit
