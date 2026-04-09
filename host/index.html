@@ -21,8 +21,9 @@
   <script src="obsid.js"></script>
   <script>
     const c = document.getElementById("canvas");
-    c.width = window.innerWidth * devicePixelRatio;
-    c.height = window.innerHeight * devicePixelRatio;
+    const dpr = Math.min(devicePixelRatio, 1.5);
+    c.width = window.innerWidth * dpr;
+    c.height = window.innerHeight * dpr;
 
     const statsEl = document.getElementById("stats");
     let frames = 0, lastTime = performance.now();
