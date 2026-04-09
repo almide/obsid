@@ -1,4 +1,11 @@
-// obsid v2 — voxel chunk renderer for Almide
+// obsid — generic mesh renderer for Almide
+//
+// WASM builds vertex/index data in linear memory using bytes.set_f32_le /
+// bytes.set_u16_le and passes pointers via bytes.data_ptr. JS reads from
+// memory.buffer with typed-array views (zero copy) and uploads to WebGL.
+//
+// Vertex format (36 bytes): pos[3] f32 + norm[3] f32 + color[3] f32
+// Index format: u16
 //
 // Usage:
 //   const instance = await Obsid.load("app.wasm", "canvas");
@@ -41,82 +48,32 @@ const Obsid = {
       return o;
     }
 
-    // ── Block Palette ─────────────────────────────────
-    //          top color          side color         bottom color
-    const PAL = [
-      null,
-      [[.36,.74,.22], [.44,.32,.18], [.44,.30,.16]],  // 1 grass
-      [[.48,.47,.46], [.42,.41,.40], [.38,.37,.36]],  // 2 stone
-      [[.52,.34,.20], [.46,.30,.18], [.42,.28,.16]],  // 3 dirt
-      [[.85,.80,.55], [.78,.72,.48], [.72,.66,.42]],  // 4 sand
-      [[.40,.28,.14], [.34,.22,.10], [.30,.20,.08]],  // 5 wood
-      [[.20,.52,.14], [.18,.44,.12], [.16,.38,.10]],  // 6 leaves
-      [[.90,.92,.95], [.82,.84,.88], [.76,.78,.82]],  // 7 snow
-      [[.20,.42,.72], [.18,.38,.66], [.16,.34,.60]],  // 8 water
-    ];
+    // ── Mesh Storage ──────────────────────────────────
+    const meshes = new Map();
 
-    // ── Face Geometry ─────────────────────────────────
-    // face: 0=+Y 1=-Y 2=+Z 3=-Z 4=+X 5=-X
-    const FV = [
-      [[0,1,0],[1,1,0],[1,1,1],[0,1,1]],
-      [[0,0,1],[1,0,1],[1,0,0],[0,0,0]],
-      [[1,0,1],[0,0,1],[0,1,1],[1,1,1]],
-      [[0,0,0],[1,0,0],[1,1,0],[0,1,0]],
-      [[1,0,0],[1,0,1],[1,1,1],[1,1,0]],
-      [[0,0,1],[0,0,0],[0,1,0],[0,1,1]],
-    ];
-    const FN = [[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,0,0],[-1,0,0]];
-    const FD = [[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,0,0],[-1,0,0]];
-    const FAO = [1.0, 0.5, 0.8, 0.65, 0.85, 0.7]; // per-face AO
-
-    // ── Chunk Meshing ─────────────────────────────────
-    const chunks = new Map();
-
-    function meshChunk(chunk) {
-      const B = chunk.blocks;
-      const verts = [], idx = [];
-      let vi = 0;
-      for (let y = 0; y < 16; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
-        const bt = B[x + z*16 + y*256];
-        if (!bt) continue;
-        const pal = PAL[bt];
-        if (!pal) continue;
-        const noise = (((x*73856093)^(y*19349663)^(z*83492791)) >>> 0 & 0xff) / 255 * 0.06 - 0.03;
-        for (let f = 0; f < 6; f++) {
-          const [dx,dy,dz] = FD[f];
-          const nx=x+dx, ny=y+dy, nz=z+dz;
-          if (nx>=0&&nx<16&&ny>=0&&ny<16&&nz>=0&&nz<16 && B[nx+nz*16+ny*256]) continue;
-          const col = pal[f<2?f:2];
-          const ao = FAO[f];
-          const [fnx,fny,fnz] = FN[f];
-          const cr = Math.max(0, (col[0]+noise)*ao);
-          const cg = Math.max(0, (col[1]+noise)*ao);
-          const cb = Math.max(0, (col[2]+noise)*ao);
-          for (const [vx,vy,vz] of FV[f])
-            verts.push(x+vx, y+vy, z+vz, fnx, fny, fnz, cr, cg, cb);
-          idx.push(vi,vi+1,vi+2, vi,vi+2,vi+3);
-          vi += 4;
-        }
-      }
-      if (!vi) { chunk.count = 0; return; }
-      if (!chunk.vbo) { chunk.vbo = gl.createBuffer(); chunk.ibo = gl.createBuffer(); }
-      gl.bindBuffer(gl.ARRAY_BUFFER, chunk.vbo);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, chunk.ibo);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
-      chunk.count = idx.length;
+    function uploadMesh(id, vertPtr, vertCount, idxPtr, idxCount) {
+      let m = meshes.get(id);
+      if (!m) { m = { pos:[0,0,0], visible:true, vbo:null, ibo:null, count:0 }; meshes.set(id, m); }
+      // Zero-copy views into WASM linear memory
+      const verts = new Float32Array(memory.buffer, vertPtr, vertCount * 9);
+      const indices = new Uint16Array(memory.buffer, idxPtr, idxCount);
+      if (!m.vbo) { m.vbo = gl.createBuffer(); m.ibo = gl.createBuffer(); }
+      gl.bindBuffer(gl.ARRAY_BUFFER, m.vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ibo);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+      m.count = idxCount;
     }
 
     // ── Shader ────────────────────────────────────────
     const VS = `
       attribute vec3 a_pos, a_norm, a_color;
       uniform mat4 u_vp;
-      uniform vec3 u_chunk, u_eye;
-      varying vec3 v_norm, v_color, v_wpos;
+      uniform vec3 u_offset, u_eye;
+      varying vec3 v_norm, v_color;
       varying float v_dist;
       void main() {
-        vec3 wp = a_pos + u_chunk;
-        v_wpos = wp;
+        vec3 wp = a_pos + u_offset;
         v_norm = a_norm;
         v_color = a_color;
         v_dist = length(wp - u_eye);
@@ -125,32 +82,20 @@ const Obsid = {
     `;
     const FS = `
       precision mediump float;
-      varying vec3 v_norm, v_color, v_wpos;
+      varying vec3 v_norm, v_color;
       varying float v_dist;
       uniform vec3 u_sun_color, u_sun_dir, u_ambient, u_fog_color;
       uniform vec2 u_fog_range;
       void main() {
         float diff = max(dot(normalize(v_norm), normalize(u_sun_dir)), 0.0);
         vec3 c = v_color * (u_ambient + u_sun_color * diff);
-
-        // Block grid lines
-        vec3 f = fract(v_wpos + 0.001);
-        vec3 d = min(f, 1.0 - f);
-        vec3 an = abs(v_norm);
-        float d1, d2;
-        if (an.x > 0.5) { d1 = d.y; d2 = d.z; }
-        else if (an.y > 0.5) { d1 = d.x; d2 = d.z; }
-        else { d1 = d.x; d2 = d.y; }
-        float line = min(smoothstep(0.0, 0.06, d1), smoothstep(0.0, 0.06, d2));
-        c *= mix(0.6, 1.0, line);
-
         float fog = clamp((u_fog_range.y - v_dist) / (u_fog_range.y - u_fog_range.x), 0.0, 1.0);
         gl_FragColor = vec4(mix(u_fog_color, c, fog), 1.0);
       }
     `;
 
     let program, aPos, aNorm, aColor;
-    let uVP, uChunk, uEye, uSunColor, uSunDir, uAmbient, uFogColor, uFogRange;
+    let uVP, uOffset, uEye, uSunColor, uSunDir, uAmbient, uFogColor, uFogRange;
 
     function initShader() {
       const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs,VS); gl.compileShader(vs);
@@ -162,7 +107,7 @@ const Obsid = {
       if (!gl.getProgramParameter(program,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(program));
       gl.useProgram(program);
       const u = n => gl.getUniformLocation(program,n);
-      uVP=u("u_vp"); uChunk=u("u_chunk"); uEye=u("u_eye");
+      uVP=u("u_vp"); uOffset=u("u_offset"); uEye=u("u_eye");
       uSunColor=u("u_sun_color"); uSunDir=u("u_sun_dir");
       uAmbient=u("u_ambient"); uFogColor=u("u_fog_color"); uFogRange=u("u_fog_range");
       aPos=gl.getAttribLocation(program,"a_pos");
@@ -172,16 +117,15 @@ const Obsid = {
       gl.enableVertexAttribArray(aNorm);
       gl.enableVertexAttribArray(aColor);
       gl.enable(gl.DEPTH_TEST);
-      gl.enable(gl.CULL_FACE);
     }
 
-    // ── Render ────────────────────────────────────────
-    let cam = { fov:60, aspect:1, near:0.1, far:200, pos:[0,30,0], target:[32,0,32] };
+    // ── Render State ──────────────────────────────────
+    let cam = { fov:60, aspect:1, near:0.1, far:200, pos:[0,30,0], target:[0,0,0] };
     let sun = { color:[1,.95,.9], dir:[.5,1,.3] };
     let amb = [.15,.15,.2];
     let fog = { color:[.55,.65,.85], near:60, far:150 };
 
-    function renderChunks() {
+    function renderMeshes() {
       gl.clearColor(fog.color[0],fog.color[1],fog.color[2],1);
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       const vp = mat4Mul(mat4Perspective(cam.fov,cam.aspect,cam.near,cam.far),
@@ -193,26 +137,28 @@ const Obsid = {
       gl.uniform3fv(uAmbient,amb);
       gl.uniform3fv(uFogColor,fog.color);
       gl.uniform2f(uFogRange,fog.near,fog.far);
-      for (const [,ch] of chunks) {
-        if (!ch.visible||!ch.count) continue;
-        gl.uniform3fv(uChunk,ch.wp);
-        gl.bindBuffer(gl.ARRAY_BUFFER,ch.vbo);
+      for (const [,m] of meshes) {
+        if (!m.visible || !m.count) continue;
+        gl.uniform3fv(uOffset,m.pos);
+        gl.bindBuffer(gl.ARRAY_BUFFER,m.vbo);
         gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,36,0);
         gl.vertexAttribPointer(aNorm,3,gl.FLOAT,false,36,12);
         gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,36,24);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ch.ibo);
-        gl.drawElements(gl.TRIANGLES,ch.count,gl.UNSIGNED_SHORT,0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ibo);
+        gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_SHORT,0);
       }
     }
 
     // ── WASM Imports ──────────────────────────────────
     const imports = {
       obsid: {
+        // State
         set_state(s,v){ state[N(s)]=N(v); },
         get_state(s){ return B(state[N(s)]??0); },
         set_state_f(s,v){ stateF[N(s)]=v; },
         get_state_f(s){ return stateF[N(s)]??0; },
 
+        // Math
         sin(x){return Math.sin(x);}, cos(x){return Math.cos(x);},
         sqrt(x){return Math.sqrt(x);}, abs(x){return Math.abs(x);},
         min(a,b){return Math.min(a,b);}, max(a,b){return Math.max(a,b);},
@@ -221,24 +167,32 @@ const Obsid = {
         to_float(x){return N(x);},
         to_int(x){return B(Math.trunc(x));},
 
+        // Canvas
         get_aspect(){ return canvas.width/canvas.height; },
 
-        create_chunk(id){
-          chunks.set(N(id),{blocks:new Uint8Array(4096),wp:[0,0,0],visible:true,vbo:null,ibo:null,count:0});
+        // Mesh
+        create_mesh(id){
+          meshes.set(N(id), { pos:[0,0,0], visible:true, vbo:null, ibo:null, count:0 });
         },
-        set_block(cid,x,y,z,bt){
-          const c=chunks.get(N(cid));
-          if(c) c.blocks[N(x)+N(z)*16+N(y)*256]=N(bt);
+        upload_mesh(id, vert_ptr, vert_count, idx_ptr, idx_count){
+          uploadMesh(N(id), N(vert_ptr), N(vert_count), N(idx_ptr), N(idx_count));
         },
-        build_chunk(cid,wx,wy,wz){
-          const c=chunks.get(N(cid));
-          if(c){c.wp=[wx,wy,wz];meshChunk(c);}
+        set_mesh_position(id, x, y, z){
+          const m = meshes.get(N(id)); if (m) m.pos = [x,y,z];
         },
-        remove_chunk(cid){ chunks.delete(N(cid)); },
-        set_chunk_visible(cid,v){
-          const c=chunks.get(N(cid)); if(c) c.visible=N(v)!==0;
+        set_mesh_visible(id, v){
+          const m = meshes.get(N(id)); if (m) m.visible = N(v) !== 0;
+        },
+        delete_mesh(id){
+          const m = meshes.get(N(id));
+          if (m) {
+            if (m.vbo) gl.deleteBuffer(m.vbo);
+            if (m.ibo) gl.deleteBuffer(m.ibo);
+            meshes.delete(N(id));
+          }
         },
 
+        // Camera & lighting
         set_camera(fov,aspect,near,far,px,py,pz,tx,ty,tz){
           cam={fov,aspect,near,far,pos:[px,py,pz],target:[tx,ty,tz]};
         },
@@ -246,7 +200,8 @@ const Obsid = {
         set_ambient(r,g,b){ amb=[r,g,b]; },
         set_fog(r,g,b,near,far){ fog={color:[r,g,b],near,far}; },
 
-        render(){ renderChunks(); },
+        // Render
+        render(){ renderMeshes(); },
       },
 
       wasi_snapshot_preview1: {

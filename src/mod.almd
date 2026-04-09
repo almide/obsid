@@ -1,4 +1,10 @@
-// obsid v2 — voxel chunk engine for Almide
+// obsid — generic mesh rendering foundation for Almide
+//
+// WASM builds vertex/index data using bytes.set_f32_le / bytes.set_u16_le
+// and passes pointers via bytes.data_ptr. Zero-copy upload to GPU.
+//
+// Vertex format: pos[3] f32 + norm[3] f32 + color[3] f32 = 36 bytes
+// Index format: u16
 
 // ── State ───────────────────────────────────────────
 
@@ -14,22 +20,22 @@ fn set_state_f(slot: Int, value: Float) -> Unit
 @extern(wasm, "obsid", "get_state_f")
 fn get_state_f(slot: Int) -> Float
 
-// ── Chunks ──────────────────────────────────────────
+// ── Mesh ────────────────────────────────────────────
 
-@extern(wasm, "obsid", "create_chunk")
-fn create_chunk(id: Int) -> Unit
+@extern(wasm, "obsid", "create_mesh")
+fn create_mesh(id: Int) -> Unit
 
-@extern(wasm, "obsid", "set_block")
-fn set_block(chunk_id: Int, x: Int, y: Int, z: Int, block_type: Int) -> Unit
+@extern(wasm, "obsid", "upload_mesh")
+fn upload_mesh(id: Int, vert_ptr: Int, vert_count: Int, idx_ptr: Int, idx_count: Int) -> Unit
 
-@extern(wasm, "obsid", "build_chunk")
-fn build_chunk(chunk_id: Int, world_x: Float, world_y: Float, world_z: Float) -> Unit
+@extern(wasm, "obsid", "set_mesh_position")
+fn set_mesh_position(id: Int, x: Float, y: Float, z: Float) -> Unit
 
-@extern(wasm, "obsid", "remove_chunk")
-fn remove_chunk(chunk_id: Int) -> Unit
+@extern(wasm, "obsid", "set_mesh_visible")
+fn set_mesh_visible(id: Int, visible: Int) -> Unit
 
-@extern(wasm, "obsid", "set_chunk_visible")
-fn set_chunk_visible(chunk_id: Int, visible: Int) -> Unit
+@extern(wasm, "obsid", "delete_mesh")
+fn delete_mesh(id: Int) -> Unit
 
 // ── Camera ──────────────────────────────────────────
 
