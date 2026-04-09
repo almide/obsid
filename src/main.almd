@@ -1,133 +1,24 @@
-// obsid demo — showcasing geometry, lighting, and materials
 import self as obsid
 
 effect fn main() -> Unit = {
-  let scene = obsid.scene()
-  obsid.set_background(scene, 0.04, 0.04, 0.08)
-  obsid.set_fog(scene, 0.04, 0.04, 0.08, 12.0, 28.0)
-
-  let camera = obsid.perspective_camera(60.0, 1.333, 0.1, 100.0)
-  obsid.set_position(camera, 0.0, 4.5, 12.0)
-  obsid.look_at(camera, 0.0, 0.8, 0.0)
-
-  // Lighting
-  let sun = obsid.directional_light(1.0, 0.95, 0.85, 0.5, 1.0, 0.3)
-  obsid.add(scene, sun)
-  let hemi = obsid.hemisphere_light(0.6, 0.7, 0.9, 0.15, 0.1, 0.05)
-  obsid.add(scene, hemi)
-
-  // Point light (warm, orbiting)
-  let pt = obsid.point_light(1.0, 0.6, 0.2, 12.0)
-  obsid.set_position(pt, 3.0, 2.0, 0.0)
-  obsid.add(scene, pt)
-
-  // Floor
-  let floor = obsid.mesh(
-    obsid.plane_geo(20.0, 20.0),
-    obsid.color_mat(0.15, 0.15, 0.18),
-  )
-  obsid.add(scene, floor)
-
-  // Red cube — Lambert
-  let cube = obsid.mesh(
-    obsid.box_geo(1.5, 1.5, 1.5),
-    obsid.color_mat(0.91, 0.27, 0.33),
-  )
-  obsid.set_position(cube, -3.5, 0.75, 0.0)
-  obsid.add(scene, cube)
-
-  // Teal sphere — Phong
-  let sphere = obsid.mesh(
-    obsid.sphere_geo(1.0, 32, 24),
-    obsid.phong_mat(0.10, 0.74, 0.61, 64.0),
-  )
-  obsid.set_position(sphere, -1.0, 1.0, 0.0)
-  obsid.add(scene, sphere)
-
-  // Gold cylinder
-  let cyl = obsid.mesh(
-    obsid.cylinder_geo(0.5, 0.5, 2.0, 24),
-    obsid.phong_mat(0.85, 0.65, 0.13, 48.0),
-  )
-  obsid.set_position(cyl, 1.5, 1.0, 0.0)
-  obsid.add(scene, cyl)
-
-  // Coral cone
-  let cone = obsid.mesh(
-    obsid.cone_geo(0.8, 1.8, 24),
-    obsid.color_mat(0.95, 0.45, 0.35),
-  )
-  obsid.set_position(cone, 4.0, 0.9, 0.0)
-  obsid.add(scene, cone)
-
-  // Purple torus — Phong
-  let torus = obsid.mesh(
-    obsid.torus_geo(0.7, 0.25, 24, 16),
-    obsid.phong_mat(0.56, 0.27, 0.68, 80.0),
-  )
-  obsid.set_position(torus, 0.0, 1.5, -3.0)
-  obsid.add(scene, torus)
-
-  // Group: small cubes orbiting
-  let grp = obsid.group()
-  obsid.set_position(grp, -1.0, 2.5, 3.0)
-  obsid.add(scene, grp)
-
-  let s1 = obsid.mesh(
-    obsid.box_geo(0.4, 0.4, 0.4),
-    obsid.flat_mat(1.0, 0.85, 0.0),
-  )
-  obsid.set_position(s1, 1.0, 0.0, 0.0)
-  obsid.add(grp, s1)
-
-  let s2 = obsid.mesh(
-    obsid.box_geo(0.4, 0.4, 0.4),
-    obsid.flat_mat(0.0, 0.85, 1.0),
-  )
-  obsid.set_position(s2, -1.0, 0.0, 0.0)
-  obsid.add(grp, s2)
-
-  // Semi-transparent ring
-  let ring_mat = obsid.phong_mat(0.3, 0.8, 1.0, 40.0)
-  obsid.set_opacity(ring_mat, 0.4)
-  let ring = obsid.mesh(
-    obsid.ring_geo(1.2, 2.0, 48),
-    ring_mat,
-  )
-  obsid.set_position(ring, 0.0, 0.05, 0.0)
-  obsid.add(scene, ring)
-
-  obsid.set_state(0, scene)
-  obsid.set_state(1, camera)
-  obsid.set_state(2, cube)
-  obsid.set_state(3, sphere)
-  obsid.set_state(4, cyl)
-  obsid.set_state(5, cone)
-  obsid.set_state(6, torus)
-  obsid.set_state(7, grp)
-  obsid.set_state(8, pt)
+  let _ = obsid.generate_terrain(6)
+  println("obsid: terrain ready")
 }
 
-pub fn render_frame(time: Float) -> Unit = {
-  let scene = obsid.get_state(0)
-  let camera = obsid.get_state(1)
-  let cube = obsid.get_state(2)
-  let sphere = obsid.get_state(3)
-  let cyl = obsid.get_state(4)
-  let cone = obsid.get_state(5)
-  let torus = obsid.get_state(6)
-  let grp = obsid.get_state(7)
-  let pt = obsid.get_state(8)
-
-  obsid.set_rotation(cube, time * 0.4, time * 0.6, 0.0)
-  obsid.set_rotation(sphere, 0.0, time * 0.3, 0.0)
-  obsid.set_rotation(cyl, 0.0, time * 0.5, 0.15)
-  obsid.set_rotation(cone, 0.0, time * 0.7, 0.0)
-  obsid.set_rotation(torus, time * 0.6, time * 0.4, 0.0)
-  obsid.set_rotation(grp, 0.0, time * 1.2, 0.0)
-
-  // Orbit point light
-  obsid.set_position(pt, 4.0 * obsid.cos(time * 0.8), 2.5, 4.0 * obsid.sin(time * 0.8))
-
-  obsid.render(scene, camera)
+// Returns Int (not Unit) to prevent dead-code elimination of FFI calls.
+// The return value is the sum of all FFI results, forcing the compiler
+// to keep every call alive. JS ignores the return value.
+pub fn render_frame(time: Float) -> Int = {
+  let aspect = obsid.get_aspect()
+  let center = 48.0
+  let r = 65.0
+  let cam_x = center + obsid.sin(time * 0.15) * r
+  let cam_z = center + obsid.cos(time * 0.15) * r
+  let cam_y = 30.0 + obsid.sin(time * 0.08) * 8.0
+  let a = obsid.set_camera(60.0, aspect, 0.1, 250.0, cam_x, cam_y, cam_z, center, 3.0, center)
+  let b = obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 0.8, 0.3)
+  let c = obsid.set_ambient(0.2, 0.22, 0.3)
+  let d = obsid.set_fog(0.55, 0.65, 0.85, 70.0, 180.0)
+  let e = obsid.render()
+  a + b + c + d + e
 }

@@ -1,145 +1,67 @@
-// obsid — 3D scene engine for Almide
+// obsid v2 — voxel chunk engine for Almide
 //
-// Scene graph API backed by a JS renderer via @extern(wasm).
-// All objects are opaque integer handles managed by the host.
-//
-//   import obsid
-//
-//   let scene = obsid.scene()
-//   let camera = obsid.perspective_camera(60.0, 1.333, 0.1, 100.0)
-//   let cube = obsid.mesh(obsid.box_geo(1.0, 1.0, 1.0), obsid.color_mat(0.9, 0.3, 0.2))
-//   obsid.add(scene, cube)
-//   obsid.render(scene, camera)
+// NOTE: All extern fns return Int (not Unit) to prevent
+// the compiler from dead-code-eliminating the calls.
 
-// ── State Storage ───────────────────────────────────
+// ── State ───────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_state")
-fn set_state(slot: Int, value: Int) -> Unit
+fn set_state(slot: Int, value: Int) -> Int
 
 @extern(wasm, "obsid", "get_state")
 fn get_state(slot: Int) -> Int
 
 @extern(wasm, "obsid", "set_state_f")
-fn set_state_f(slot: Int, value: Float) -> Unit
+fn set_state_f(slot: Int, value: Float) -> Int
 
 @extern(wasm, "obsid", "get_state_f")
 fn get_state_f(slot: Int) -> Float
 
-// ── Scene ───────────────────────────────────────────
+// ── Chunks ──────────────────────────────────────────
 
-@extern(wasm, "obsid", "scene")
-fn scene() -> Int
+@extern(wasm, "obsid", "create_chunk")
+fn create_chunk(id: Int) -> Int
 
-@extern(wasm, "obsid", "set_background")
-fn set_background(scene: Int, r: Float, g: Float, b: Float) -> Unit
+@extern(wasm, "obsid", "set_block")
+fn set_block(chunk_id: Int, x: Int, y: Int, z: Int, block_type: Int) -> Int
 
-@extern(wasm, "obsid", "set_fog")
-fn set_fog(scene: Int, r: Float, g: Float, b: Float, near: Float, far: Float) -> Unit
+@extern(wasm, "obsid", "build_chunk")
+fn build_chunk(chunk_id: Int, world_x: Float, world_y: Float, world_z: Float) -> Int
 
-@extern(wasm, "obsid", "set_fog_exp2")
-fn set_fog_exp2(scene: Int, r: Float, g: Float, b: Float, density: Float) -> Unit
+@extern(wasm, "obsid", "remove_chunk")
+fn remove_chunk(chunk_id: Int) -> Int
+
+@extern(wasm, "obsid", "set_chunk_visible")
+fn set_chunk_visible(chunk_id: Int, visible: Int) -> Int
 
 // ── Camera ──────────────────────────────────────────
 
-@extern(wasm, "obsid", "perspective_camera")
-fn perspective_camera(fov: Float, aspect: Float, near: Float, far: Float) -> Int
+@extern(wasm, "obsid", "set_camera")
+fn set_camera(fov: Float, aspect: Float, near: Float, far: Float, px: Float, py: Float, pz: Float, tx: Float, ty: Float, tz: Float) -> Int
 
-@extern(wasm, "obsid", "orthographic_camera")
-fn orthographic_camera(left: Float, right: Float, top: Float, bottom: Float, near: Float, far: Float) -> Int
+@extern(wasm, "obsid", "get_aspect")
+fn get_aspect() -> Float
 
-// ── Geometry ────────────────────────────────────────
+// ── Lighting ────────────────────────────────────────
 
-@extern(wasm, "obsid", "box_geo")
-fn box_geo(w: Float, h: Float, d: Float) -> Int
+@extern(wasm, "obsid", "set_dir_light")
+fn set_dir_light(r: Float, g: Float, b: Float, dx: Float, dy: Float, dz: Float) -> Int
 
-@extern(wasm, "obsid", "sphere_geo")
-fn sphere_geo(radius: Float, segments: Int, rings: Int) -> Int
+@extern(wasm, "obsid", "set_ambient")
+fn set_ambient(r: Float, g: Float, b: Float) -> Int
 
-@extern(wasm, "obsid", "plane_geo")
-fn plane_geo(w: Float, h: Float) -> Int
+@extern(wasm, "obsid", "set_fog")
+fn set_fog(r: Float, g: Float, b: Float, near: Float, far: Float) -> Int
 
-@extern(wasm, "obsid", "cylinder_geo")
-fn cylinder_geo(radius_top: Float, radius_bottom: Float, height: Float, segments: Int) -> Int
+// ── Rendering ───────────────────────────────────────
 
-@extern(wasm, "obsid", "cone_geo")
-fn cone_geo(radius: Float, height: Float, segments: Int) -> Int
+@extern(wasm, "obsid", "render")
+fn render() -> Int
 
-@extern(wasm, "obsid", "torus_geo")
-fn torus_geo(radius: Float, tube: Float, radial_segments: Int, tubular_segments: Int) -> Int
+// ── Terrain ─────────────────────────────────────────
 
-@extern(wasm, "obsid", "circle_geo")
-fn circle_geo(radius: Float, segments: Int) -> Int
-
-@extern(wasm, "obsid", "ring_geo")
-fn ring_geo(inner: Float, outer: Float, segments: Int) -> Int
-
-// ── Material ────────────────────────────────────────
-
-@extern(wasm, "obsid", "color_mat")
-fn color_mat(r: Float, g: Float, b: Float) -> Int
-
-@extern(wasm, "obsid", "flat_mat")
-fn flat_mat(r: Float, g: Float, b: Float) -> Int
-
-@extern(wasm, "obsid", "phong_mat")
-fn phong_mat(r: Float, g: Float, b: Float, shininess: Float) -> Int
-
-@extern(wasm, "obsid", "set_color")
-fn set_color(material: Int, r: Float, g: Float, b: Float) -> Unit
-
-@extern(wasm, "obsid", "set_specular")
-fn set_specular(material: Int, r: Float, g: Float, b: Float) -> Unit
-
-@extern(wasm, "obsid", "set_opacity")
-fn set_opacity(material: Int, opacity: Float) -> Unit
-
-@extern(wasm, "obsid", "set_shininess")
-fn set_shininess(material: Int, shininess: Float) -> Unit
-
-// ── Mesh ────────────────────────────────────────────
-
-@extern(wasm, "obsid", "mesh")
-fn mesh(geometry: Int, material: Int) -> Int
-
-// ── Object3D Operations ─────────────────────────────
-
-@extern(wasm, "obsid", "group")
-fn group() -> Int
-
-@extern(wasm, "obsid", "add")
-fn add(parent: Int, child: Int) -> Unit
-
-@extern(wasm, "obsid", "remove")
-fn remove(parent: Int, child: Int) -> Unit
-
-@extern(wasm, "obsid", "set_position")
-fn set_position(obj: Int, x: Float, y: Float, z: Float) -> Unit
-
-@extern(wasm, "obsid", "set_rotation")
-fn set_rotation(obj: Int, x: Float, y: Float, z: Float) -> Unit
-
-@extern(wasm, "obsid", "set_scale")
-fn set_scale(obj: Int, x: Float, y: Float, z: Float) -> Unit
-
-@extern(wasm, "obsid", "look_at")
-fn look_at(obj: Int, x: Float, y: Float, z: Float) -> Unit
-
-@extern(wasm, "obsid", "set_visible")
-fn set_visible(obj: Int, visible: Int) -> Unit
-
-// ── Lights ──────────────────────────────────────────
-
-@extern(wasm, "obsid", "directional_light")
-fn directional_light(r: Float, g: Float, b: Float, x: Float, y: Float, z: Float) -> Int
-
-@extern(wasm, "obsid", "ambient_light")
-fn ambient_light(r: Float, g: Float, b: Float) -> Int
-
-@extern(wasm, "obsid", "point_light")
-fn point_light(r: Float, g: Float, b: Float, range: Float) -> Int
-
-@extern(wasm, "obsid", "hemisphere_light")
-fn hemisphere_light(sky_r: Float, sky_g: Float, sky_b: Float, ground_r: Float, ground_g: Float, ground_b: Float) -> Int
+@extern(wasm, "obsid", "generate_terrain")
+fn generate_terrain(grid: Int) -> Int
 
 // ── Math ────────────────────────────────────────────
 
@@ -151,9 +73,6 @@ fn cos(x: Float) -> Float
 
 @extern(wasm, "obsid", "sqrt")
 fn sqrt(x: Float) -> Float
-
-@extern(wasm, "obsid", "atan2")
-fn atan2(y: Float, x: Float) -> Float
 
 @extern(wasm, "obsid", "abs")
 fn abs(x: Float) -> Float
@@ -167,16 +86,14 @@ fn max(a: Float, b: Float) -> Float
 @extern(wasm, "obsid", "floor")
 fn floor(x: Float) -> Float
 
-@extern(wasm, "obsid", "ceil")
-fn ceil(x: Float) -> Float
+@extern(wasm, "obsid", "pi")
+fn pi() -> Float
 
 @extern(wasm, "obsid", "pow")
 fn pow(x: Float, y: Float) -> Float
 
-@extern(wasm, "obsid", "pi")
-fn pi() -> Float
+@extern(wasm, "obsid", "to_float")
+fn to_float(x: Int) -> Float
 
-// ── Rendering ───────────────────────────────────────
-
-@extern(wasm, "obsid", "render")
-fn render(scene: Int, camera: Int) -> Unit
+@extern(wasm, "obsid", "to_int")
+fn to_int(x: Float) -> Int

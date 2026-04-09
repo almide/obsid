@@ -4,16 +4,21 @@
   <meta charset="utf-8">
   <title>obsid</title>
   <style>
-    body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #050508; }
-    canvas { border-radius: 8px; box-shadow: 0 4px 32px rgba(0,0,0,0.8); }
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #020104; }
+    canvas { display: block; width: 100vw; height: 100vh; }
   </style>
 </head>
 <body>
-  <canvas id="canvas" width="800" height="600"></canvas>
+  <canvas id="canvas"></canvas>
   <script src="obsid.js"></script>
   <script>
+    const c = document.getElementById("canvas");
+    c.width = window.innerWidth * devicePixelRatio;
+    c.height = window.innerHeight * devicePixelRatio;
     Obsid.load("app.wasm", "canvas")
       .catch(e => console.error("Failed:", e));
+    window.addEventListener("resize", () => location.reload());
   </script>
 </body>
 </html>
