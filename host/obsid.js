@@ -117,6 +117,7 @@ const Obsid = {
       gl.enableVertexAttribArray(aNorm);
       gl.enableVertexAttribArray(aColor);
       gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
     }
 
     // ── Render State ──────────────────────────────────
