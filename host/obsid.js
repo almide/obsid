@@ -257,6 +257,7 @@ const Obsid = {
             meshChunk(chunks.get(id));
             console.log("chunk", id, "faces:", chunks.get(id).count/6);
           }
+          return 0n;
         },
 
         // Render

@@ -7,15 +7,39 @@
     * { margin: 0; padding: 0; }
     body { overflow: hidden; background: #020104; }
     canvas { display: block; width: 100vw; height: 100vh; }
+    #stats {
+      position: fixed; top: 12px; left: 12px;
+      color: #fff; font: 13px/1.5 monospace;
+      background: rgba(0,0,0,0.5); padding: 6px 10px;
+      border-radius: 4px; pointer-events: none;
+    }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
+  <div id="stats"></div>
   <script src="obsid.js"></script>
   <script>
     const c = document.getElementById("canvas");
     c.width = window.innerWidth * devicePixelRatio;
     c.height = window.innerHeight * devicePixelRatio;
+
+    const statsEl = document.getElementById("stats");
+    let frames = 0, lastTime = performance.now();
+    function updateStats() {
+      const now = performance.now();
+      frames++;
+      if (now - lastTime >= 500) {
+        const fps = (frames * 1000 / (now - lastTime)).toFixed(1);
+        const ms = ((now - lastTime) / frames).toFixed(2);
+        statsEl.textContent = `${fps} fps / ${ms} ms`;
+        frames = 0;
+        lastTime = now;
+      }
+      requestAnimationFrame(updateStats);
+    }
+    requestAnimationFrame(updateStats);
+
     Obsid.load("app.wasm", "canvas")
       .catch(e => console.error("Failed:", e));
     window.addEventListener("resize", () => location.reload());
