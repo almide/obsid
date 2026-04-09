@@ -1,18 +1,15 @@
 // obsid v2 — voxel chunk engine for Almide
-//
-// NOTE: All extern fns return Int (not Unit) to prevent
-// the compiler from dead-code-eliminating the calls.
 
 // ── State ───────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_state")
-fn set_state(slot: Int, value: Int) -> Int
+fn set_state(slot: Int, value: Int) -> Unit
 
 @extern(wasm, "obsid", "get_state")
 fn get_state(slot: Int) -> Int
 
 @extern(wasm, "obsid", "set_state_f")
-fn set_state_f(slot: Int, value: Float) -> Int
+fn set_state_f(slot: Int, value: Float) -> Unit
 
 @extern(wasm, "obsid", "get_state_f")
 fn get_state_f(slot: Int) -> Float
@@ -20,24 +17,24 @@ fn get_state_f(slot: Int) -> Float
 // ── Chunks ──────────────────────────────────────────
 
 @extern(wasm, "obsid", "create_chunk")
-fn create_chunk(id: Int) -> Int
+fn create_chunk(id: Int) -> Unit
 
 @extern(wasm, "obsid", "set_block")
-fn set_block(chunk_id: Int, x: Int, y: Int, z: Int, block_type: Int) -> Int
+fn set_block(chunk_id: Int, x: Int, y: Int, z: Int, block_type: Int) -> Unit
 
 @extern(wasm, "obsid", "build_chunk")
-fn build_chunk(chunk_id: Int, world_x: Float, world_y: Float, world_z: Float) -> Int
+fn build_chunk(chunk_id: Int, world_x: Float, world_y: Float, world_z: Float) -> Unit
 
 @extern(wasm, "obsid", "remove_chunk")
-fn remove_chunk(chunk_id: Int) -> Int
+fn remove_chunk(chunk_id: Int) -> Unit
 
 @extern(wasm, "obsid", "set_chunk_visible")
-fn set_chunk_visible(chunk_id: Int, visible: Int) -> Int
+fn set_chunk_visible(chunk_id: Int, visible: Int) -> Unit
 
 // ── Camera ──────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_camera")
-fn set_camera(fov: Float, aspect: Float, near: Float, far: Float, px: Float, py: Float, pz: Float, tx: Float, ty: Float, tz: Float) -> Int
+fn set_camera(fov: Float, aspect: Float, near: Float, far: Float, px: Float, py: Float, pz: Float, tx: Float, ty: Float, tz: Float) -> Unit
 
 @extern(wasm, "obsid", "get_aspect")
 fn get_aspect() -> Float
@@ -45,23 +42,18 @@ fn get_aspect() -> Float
 // ── Lighting ────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_dir_light")
-fn set_dir_light(r: Float, g: Float, b: Float, dx: Float, dy: Float, dz: Float) -> Int
+fn set_dir_light(r: Float, g: Float, b: Float, dx: Float, dy: Float, dz: Float) -> Unit
 
 @extern(wasm, "obsid", "set_ambient")
-fn set_ambient(r: Float, g: Float, b: Float) -> Int
+fn set_ambient(r: Float, g: Float, b: Float) -> Unit
 
 @extern(wasm, "obsid", "set_fog")
-fn set_fog(r: Float, g: Float, b: Float, near: Float, far: Float) -> Int
+fn set_fog(r: Float, g: Float, b: Float, near: Float, far: Float) -> Unit
 
 // ── Rendering ───────────────────────────────────────
 
 @extern(wasm, "obsid", "render")
-fn render() -> Int
-
-// ── Terrain ─────────────────────────────────────────
-
-@extern(wasm, "obsid", "generate_terrain")
-fn generate_terrain(grid: Int) -> Int
+fn render() -> Unit
 
 // ── Math ────────────────────────────────────────────
 

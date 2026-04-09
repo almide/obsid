@@ -1,4 +1,4 @@
-// obsid v2 — voxel-ready chunk renderer
+// obsid v2 — voxel chunk renderer for Almide
 //
 // Usage:
 //   const instance = await Obsid.load("app.wasm", "canvas");
@@ -45,17 +45,17 @@ const Obsid = {
     //          top color          side color         bottom color
     const PAL = [
       null,
-      [[.35,.70,.25], [.50,.35,.20], [.50,.35,.20]],  // 1 grass
-      [[.50,.50,.52], [.50,.50,.52], [.50,.50,.52]],  // 2 stone
-      [[.55,.36,.22], [.55,.36,.22], [.55,.36,.22]],  // 3 dirt
-      [[.82,.78,.55], [.82,.78,.55], [.82,.78,.55]],  // 4 sand
-      [[.40,.28,.16], [.35,.24,.13], [.35,.24,.13]],  // 5 wood
-      [[.22,.48,.18], [.22,.48,.18], [.22,.48,.18]],  // 6 leaves
-      [[.85,.88,.92], [.85,.88,.92], [.85,.88,.92]],  // 7 snow
-      [[.30,.55,.75], [.30,.55,.75], [.30,.55,.75]],  // 8 water (translucent later)
+      [[.36,.74,.22], [.44,.32,.18], [.44,.30,.16]],  // 1 grass
+      [[.48,.47,.46], [.42,.41,.40], [.38,.37,.36]],  // 2 stone
+      [[.52,.34,.20], [.46,.30,.18], [.42,.28,.16]],  // 3 dirt
+      [[.85,.80,.55], [.78,.72,.48], [.72,.66,.42]],  // 4 sand
+      [[.40,.28,.14], [.34,.22,.10], [.30,.20,.08]],  // 5 wood
+      [[.20,.52,.14], [.18,.44,.12], [.16,.38,.10]],  // 6 leaves
+      [[.90,.92,.95], [.82,.84,.88], [.76,.78,.82]],  // 7 snow
+      [[.20,.42,.72], [.18,.38,.66], [.16,.34,.60]],  // 8 water
     ];
 
-    // ── Face Geometry Tables ──────────────────────────
+    // ── Face Geometry ─────────────────────────────────
     // face: 0=+Y 1=-Y 2=+Z 3=-Z 4=+X 5=-X
     const FV = [
       [[0,1,0],[1,1,0],[1,1,1],[0,1,1]],
@@ -67,8 +67,9 @@ const Obsid = {
     ];
     const FN = [[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,0,0],[-1,0,0]];
     const FD = [[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,0,0],[-1,0,0]];
+    const FAO = [1.0, 0.5, 0.8, 0.65, 0.85, 0.7]; // per-face AO
 
-    // ── Chunk Manager ─────────────────────────────────
+    // ── Chunk Meshing ─────────────────────────────────
     const chunks = new Map();
 
     function meshChunk(chunk) {
@@ -80,14 +81,19 @@ const Obsid = {
         if (!bt) continue;
         const pal = PAL[bt];
         if (!pal) continue;
+        const noise = (((x*73856093)^(y*19349663)^(z*83492791)) >>> 0 & 0xff) / 255 * 0.06 - 0.03;
         for (let f = 0; f < 6; f++) {
           const [dx,dy,dz] = FD[f];
           const nx=x+dx, ny=y+dy, nz=z+dz;
           if (nx>=0&&nx<16&&ny>=0&&ny<16&&nz>=0&&nz<16 && B[nx+nz*16+ny*256]) continue;
-          const col = pal[f<2?f:2]; // 0=top 1=bottom 2+=side
+          const col = pal[f<2?f:2];
+          const ao = FAO[f];
           const [fnx,fny,fnz] = FN[f];
+          const cr = Math.max(0, (col[0]+noise)*ao);
+          const cg = Math.max(0, (col[1]+noise)*ao);
+          const cb = Math.max(0, (col[2]+noise)*ao);
           for (const [vx,vy,vz] of FV[f])
-            verts.push(x+vx,y+vy,z+vz, fnx,fny,fnz, col[0],col[1],col[2]);
+            verts.push(x+vx, y+vy, z+vz, fnx, fny, fnz, cr, cg, cb);
           idx.push(vi,vi+1,vi+2, vi,vi+2,vi+3);
           vi += 4;
         }
@@ -106,10 +112,11 @@ const Obsid = {
       attribute vec3 a_pos, a_norm, a_color;
       uniform mat4 u_vp;
       uniform vec3 u_chunk, u_eye;
-      varying vec3 v_norm, v_color;
+      varying vec3 v_norm, v_color, v_wpos;
       varying float v_dist;
       void main() {
         vec3 wp = a_pos + u_chunk;
+        v_wpos = wp;
         v_norm = a_norm;
         v_color = a_color;
         v_dist = length(wp - u_eye);
@@ -118,13 +125,25 @@ const Obsid = {
     `;
     const FS = `
       precision mediump float;
-      varying vec3 v_norm, v_color;
+      varying vec3 v_norm, v_color, v_wpos;
       varying float v_dist;
       uniform vec3 u_sun_color, u_sun_dir, u_ambient, u_fog_color;
       uniform vec2 u_fog_range;
       void main() {
         float diff = max(dot(normalize(v_norm), normalize(u_sun_dir)), 0.0);
         vec3 c = v_color * (u_ambient + u_sun_color * diff);
+
+        // Block grid lines
+        vec3 f = fract(v_wpos + 0.001);
+        vec3 d = min(f, 1.0 - f);
+        vec3 an = abs(v_norm);
+        float d1, d2;
+        if (an.x > 0.5) { d1 = d.y; d2 = d.z; }
+        else if (an.y > 0.5) { d1 = d.x; d2 = d.z; }
+        else { d1 = d.x; d2 = d.y; }
+        float line = min(smoothstep(0.0, 0.06, d1), smoothstep(0.0, 0.06, d2));
+        c *= mix(0.6, 1.0, line);
+
         float fog = clamp((u_fog_range.y - v_dist) / (u_fog_range.y - u_fog_range.x), 0.0, 1.0);
         gl_FragColor = vec4(mix(u_fog_color, c, fog), 1.0);
       }
@@ -156,7 +175,7 @@ const Obsid = {
       gl.enable(gl.CULL_FACE);
     }
 
-    // ── Render State ──────────────────────────────────
+    // ── Render ────────────────────────────────────────
     let cam = { fov:60, aspect:1, near:0.1, far:200, pos:[0,30,0], target:[32,0,32] };
     let sun = { color:[1,.95,.9], dir:[.5,1,.3] };
     let amb = [.15,.15,.2];
@@ -186,82 +205,48 @@ const Obsid = {
       }
     }
 
-    // ── Imports ───────────────────────────────────────
+    // ── WASM Imports ──────────────────────────────────
     const imports = {
       obsid: {
-        // State
-        set_state(s,v){ state[N(s)]=N(v); return 0n; },
+        set_state(s,v){ state[N(s)]=N(v); },
         get_state(s){ return B(state[N(s)]??0); },
-        set_state_f(s,v){ stateF[N(s)]=v; return 0n; },
+        set_state_f(s,v){ stateF[N(s)]=v; },
         get_state_f(s){ return stateF[N(s)]??0; },
 
-        // Math
         sin(x){return Math.sin(x);}, cos(x){return Math.cos(x);},
-        sqrt(x){return Math.sqrt(x);}, atan2(y,x){return Math.atan2(y,x);},
-        abs(x){return Math.abs(x);}, min(a,b){return Math.min(a,b);},
-        max(a,b){return Math.max(a,b);}, floor(x){return Math.floor(x);},
-        ceil(x){return Math.ceil(x);}, pow(x,y){return Math.pow(x,y);},
-        pi(){return Math.PI;},
+        sqrt(x){return Math.sqrt(x);}, abs(x){return Math.abs(x);},
+        min(a,b){return Math.min(a,b);}, max(a,b){return Math.max(a,b);},
+        floor(x){return Math.floor(x);}, ceil(x){return Math.ceil(x);},
+        pow(x,y){return Math.pow(x,y);}, pi(){return Math.PI;},
         to_float(x){return N(x);},
         to_int(x){return B(Math.trunc(x));},
 
-        // Canvas
         get_aspect(){ return canvas.width/canvas.height; },
 
-        // Chunks
         create_chunk(id){
           chunks.set(N(id),{blocks:new Uint8Array(4096),wp:[0,0,0],visible:true,vbo:null,ibo:null,count:0});
-          return 0n;
         },
         set_block(cid,x,y,z,bt){
           const c=chunks.get(N(cid));
           if(c) c.blocks[N(x)+N(z)*16+N(y)*256]=N(bt);
-          return 0n;
         },
         build_chunk(cid,wx,wy,wz){
           const c=chunks.get(N(cid));
           if(c){c.wp=[wx,wy,wz];meshChunk(c);}
-          return 0n;
         },
-        remove_chunk(cid){ chunks.delete(N(cid)); return 0n; },
+        remove_chunk(cid){ chunks.delete(N(cid)); },
         set_chunk_visible(cid,v){
-          const c=chunks.get(N(cid)); if(c) c.visible=N(v)!==0; return 0n;
+          const c=chunks.get(N(cid)); if(c) c.visible=N(v)!==0;
         },
 
-        // Camera & lighting
         set_camera(fov,aspect,near,far,px,py,pz,tx,ty,tz){
-          cam={fov,aspect,near,far,pos:[px,py,pz],target:[tx,ty,tz]}; return 0n;
+          cam={fov,aspect,near,far,pos:[px,py,pz],target:[tx,ty,tz]};
         },
-        set_dir_light(r,g,b,dx,dy,dz){ sun={color:[r,g,b],dir:[dx,dy,dz]}; return 0n; },
-        set_ambient(r,g,b){ amb=[r,g,b]; return 0n; },
-        set_fog(r,g,b,near,far){ fog={color:[r,g,b],near,far}; return 0n; },
+        set_dir_light(r,g,b,dx,dy,dz){ sun={color:[r,g,b],dir:[dx,dy,dz]}; },
+        set_ambient(r,g,b){ amb=[r,g,b]; },
+        set_fog(r,g,b,near,far){ fog={color:[r,g,b],near,far}; },
 
-        // Terrain generation (workaround: Almide WASM loops can't call extern fns)
-        generate_terrain(gridSize) {
-          const g = N(gridSize);
-          for (let cx = 0; cx < g; cx++) for (let cz = 0; cz < g; cz++) {
-            const id = cx * g + cz;
-            chunks.set(id, {blocks:new Uint8Array(4096),wp:[0,0,0],visible:true,vbo:null,ibo:null,count:0});
-            const B = chunks.get(id).blocks;
-            for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) {
-              const wx = cx*16+x, wz = cz*16+z;
-              const h = Math.max(1, Math.round(
-                5 + Math.sin(wx*0.12)*3 + Math.cos(wz*0.15)*2.5
-                  + Math.sin(wx*0.05+wz*0.08)*4
-              ));
-              for (let y = 0; y < h && y < 16; y++) {
-                B[x + z*16 + y*256] = y === h-1 ? 1 : y > h-4 ? 3 : 2;
-              }
-            }
-            chunks.get(id).wp = [cx*16, 0, cz*16];
-            meshChunk(chunks.get(id));
-            console.log("chunk", id, "faces:", chunks.get(id).count/6);
-          }
-          return 0n;
-        },
-
-        // Render
-        render(){ renderChunks(); return 0n; },
+        render(){ renderChunks(); },
       },
 
       wasi_snapshot_preview1: {

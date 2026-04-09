@@ -1,24 +1,67 @@
+// obsid demo — voxel terrain with height variation
 import self as obsid
 
 effect fn main() -> Unit = {
-  let _ = obsid.generate_terrain(6)
-  println("obsid: terrain ready")
+  let grid = 6
+  let water = 4
+
+  for cx in 0..grid {
+    for cz in 0..grid {
+      let id = cx * grid + cz
+      obsid.create_chunk(id)
+
+      for x in 0..16 {
+        for z in 0..16 {
+          let wx = obsid.to_float(cx * 16 + x)
+          let wz = obsid.to_float(cz * 16 + z)
+
+          let h = obsid.to_int(
+            8.0
+            + obsid.sin(wx * 0.05) * 5.0
+            + obsid.cos(wz * 0.07) * 4.0
+            + obsid.sin(wx * 0.04 + wz * 0.05) * 6.0
+            + obsid.sin(wx * 0.15) * obsid.cos(wz * 0.12) * 3.0
+            + obsid.sin(wx * 0.3 + 1.0) * 1.5
+            + obsid.cos(wz * 0.25 + 2.0) * 1.5
+          )
+
+          let h_clamped = if h < 1 then 1 else if h > 15 then 15 else h
+
+          for y in 0..h_clamped {
+            let bt =
+              if y == h_clamped - 1 then
+                if h_clamped > 12 then 7
+                else if h_clamped <= water + 1 then 4
+                else 1
+              else if y > h_clamped - 4 then 3
+              else 2
+            obsid.set_block(id, x, y, z, bt)
+          }
+
+          // Water
+          if h_clamped < water then
+            for wy in h_clamped..water {
+              obsid.set_block(id, x, wy, z, 8)
+            }
+          else ()
+        }
+      }
+
+      obsid.build_chunk(id, obsid.to_float(cx * 16), 0.0, obsid.to_float(cz * 16))
+    }
+  }
 }
 
-// Returns Int (not Unit) to prevent dead-code elimination of FFI calls.
-// The return value is the sum of all FFI results, forcing the compiler
-// to keep every call alive. JS ignores the return value.
-pub fn render_frame(time: Float) -> Int = {
+pub fn render_frame(time: Float) -> Unit = {
   let aspect = obsid.get_aspect()
   let center = 48.0
-  let r = 65.0
-  let cam_x = center + obsid.sin(time * 0.15) * r
-  let cam_z = center + obsid.cos(time * 0.15) * r
-  let cam_y = 30.0 + obsid.sin(time * 0.08) * 8.0
-  let a = obsid.set_camera(60.0, aspect, 0.1, 250.0, cam_x, cam_y, cam_z, center, 3.0, center)
-  let b = obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 0.8, 0.3)
-  let c = obsid.set_ambient(0.2, 0.22, 0.3)
-  let d = obsid.set_fog(0.55, 0.65, 0.85, 70.0, 180.0)
-  let e = obsid.render()
-  a + b + c + d + e
+  let r = 60.0
+  let cam_x = center + obsid.sin(time * 0.12) * r
+  let cam_z = center + obsid.cos(time * 0.12) * r
+  let cam_y = 32.0 + obsid.sin(time * 0.06) * 10.0
+  obsid.set_camera(55.0, aspect, 0.1, 250.0, cam_x, cam_y, cam_z, center, 5.0, center)
+  obsid.set_dir_light(1.0, 0.9, 0.8, 0.3, 1.0, 0.5)
+  obsid.set_ambient(0.18, 0.2, 0.28)
+  obsid.set_fog(0.6, 0.72, 0.88, 65.0, 180.0)
+  obsid.render()
 }
