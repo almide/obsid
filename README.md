@@ -1,14 +1,27 @@
 # almide/obsid
 
-3D scene engine for [Almide](https://github.com/almide/almide) — Three.js-inspired, powered by `@extern(wasm)`.
+Voxel chunk renderer for [Almide](https://github.com/almide/almide) — WASM-native terrain generation with JS/WebGL rendering.
 
-**3.8 KB** WASM for a lit scene with multiple rotating objects. The scene description and animation logic compile to WASM; the renderer lives in a JS host.
+## Architecture
 
-## Install
-
-```bash
-almide add almide/obsid@v0.1.0
 ```
+Almide (WASM, ~4 KB)              obsid.js (JS host)
+┌──────────────────────┐           ┌─────────────────────────┐
+│ Terrain generation   │           │ Chunk meshing           │
+│  └ for loops over    │──FFI────→ │  └ face culling         │
+│    blocks per chunk  │           │  └ vertex/index buffers │
+│ Per-frame updates    │           │ WebGL rendering         │
+│  └ camera orbit      │──FFI────→ │  └ Lambert shading      │
+│  └ lighting/fog      │           │  └ per-face AO          │
+│  └ render()          │           │  └ fog                  │
+└──────────────────────┘           └─────────────────────────┘
+```
+
+**WASM side** owns world logic: which blocks exist, where the camera is, how it moves. All terrain generation runs in WASM via nested `for` loops calling `set_block()`.
+
+**JS side** owns rendering: receives block data via FFI, generates meshes (face culling, vertex buffers), and draws with WebGL. No scene graph — flat chunk iteration.
+
+Key design: WASM never touches rendering. JS never touches game logic. The boundary is a small set of FFI calls (`create_chunk`, `set_block`, `build_chunk`, `set_camera`, `render`).
 
 ## Quick Start
 
@@ -16,123 +29,100 @@ almide add almide/obsid@v0.1.0
 import obsid
 
 effect fn main() -> Unit = {
-  let scene = obsid.scene()
-  obsid.set_background(scene, 0.06, 0.06, 0.1)
-
-  let camera = obsid.perspective_camera(60.0, 1.333, 0.1, 100.0)
-  obsid.set_position(camera, 0.0, 3.0, 7.0)
-  obsid.look_at(camera, 0.0, 0.5, 0.0)
-
-  // Lighting
-  obsid.add(scene, obsid.directional_light(1.0, 0.95, 0.9, 0.5, 1.0, 0.3))
-  obsid.add(scene, obsid.ambient_light(0.15, 0.15, 0.2))
-
-  // Mesh = Geometry + Material
-  let cube = obsid.mesh(
-    obsid.box_geo(1.5, 1.5, 1.5),
-    obsid.color_mat(0.91, 0.27, 0.33),
-  )
-  obsid.set_position(cube, 0.0, 0.75, 0.0)
-  obsid.add(scene, cube)
-
-  obsid.set_state(0, scene)
-  obsid.set_state(1, camera)
-  obsid.set_state(2, cube)
+  obsid.create_chunk(0)
+  for x in 0..16 {
+    for z in 0..16 {
+      for y in 0..4 {
+        obsid.set_block(0, x, y, z, if y == 3 then 1 else 2)
+      }
+    }
+  }
+  obsid.build_chunk(0, 0.0, 0.0, 0.0)
 }
 
-// Called every frame by the JS animation loop
-fn render_frame(time: Float) -> Unit = {
-  obsid.set_rotation(obsid.get_state(2), time * 0.5, time * 0.7, 0.0)
-  obsid.render(obsid.get_state(0), obsid.get_state(1))
+pub fn render_frame(time: Float) -> Unit = {
+  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0,
+    obsid.sin(time * 0.3) * 20.0, 15.0, obsid.cos(time * 0.3) * 20.0,
+    8.0, 2.0, 8.0)
+  obsid.set_dir_light(1.0, 0.95, 0.9, 0.5, 1.0, 0.3)
+  obsid.set_ambient(0.2, 0.2, 0.25)
+  obsid.render()
 }
 ```
 
-**Build and serve:**
+Build and serve:
 
 ```bash
-almide build app.almd --target wasm -o host/app.wasm
-```
-
-```html
-<canvas id="canvas" width="800" height="600"></canvas>
-<script src="obsid.js"></script>
-<script>Obsid.load("app.wasm", "canvas");</script>
+almide build src/main.almd --target wasm -o host/app.wasm
+cd host && python3 -m http.server 8765
 ```
 
 ## API
 
-### Scene
+### Chunks
 
 ```almide
-obsid.scene()                                              // create scene
-obsid.set_background(scene, r, g, b)                      // background color
-obsid.add(parent, child)                                   // add object to scene
+obsid.create_chunk(id)                          // allocate 16³ block grid
+obsid.set_block(chunk_id, x, y, z, block_type)  // place a block (0=air)
+obsid.build_chunk(chunk_id, wx, wy, wz)         // mesh and upload to GPU
+obsid.remove_chunk(chunk_id)                    // unload
+obsid.set_chunk_visible(chunk_id, visible)      // show/hide
 ```
 
-### Camera
+### Block Types
+
+| ID | Type  | Top     | Side    |
+|----|-------|---------|---------|
+| 1  | Grass | green   | brown   |
+| 2  | Stone | gray    | gray    |
+| 3  | Dirt  | brown   | brown   |
+| 4  | Sand  | yellow  | yellow  |
+| 5  | Wood  | brown   | brown   |
+| 6  | Leaves| green   | green   |
+| 7  | Snow  | white   | white   |
+| 8  | Water | blue    | blue    |
+
+### Camera & Rendering
 
 ```almide
-obsid.perspective_camera(fov, aspect, near, far)           // create camera
-obsid.set_position(camera, x, y, z)
-obsid.look_at(camera, x, y, z)
+obsid.set_camera(fov, aspect, near, far, px, py, pz, tx, ty, tz)
+obsid.get_aspect() -> Float                     // canvas width/height
+obsid.set_dir_light(r, g, b, dx, dy, dz)       // directional light
+obsid.set_ambient(r, g, b)                      // ambient light
+obsid.set_fog(r, g, b, near, far)               // distance fog
+obsid.render()                                  // draw frame
 ```
 
-### Geometry
+### Math
 
 ```almide
-obsid.box_geo(w, h, d)                                    // box
-obsid.sphere_geo(radius, segments, rings)                  // UV sphere
-obsid.plane_geo(w, h)                                     // ground plane (XZ)
-```
-
-### Material
-
-```almide
-obsid.color_mat(r, g, b)                                  // Lambert shading
-obsid.flat_mat(r, g, b)                                   // unlit flat color
-```
-
-### Mesh
-
-```almide
-obsid.mesh(geometry, material)                             // create mesh
-obsid.set_position(obj, x, y, z)
-obsid.set_rotation(obj, rx, ry, rz)                        // euler angles (radians)
-obsid.set_scale(obj, sx, sy, sz)
-```
-
-### Lights
-
-```almide
-obsid.directional_light(r, g, b, dir_x, dir_y, dir_z)     // sun-like
-obsid.ambient_light(r, g, b)                               // fill light
-```
-
-### Rendering
-
-```almide
-obsid.render(scene, camera)                                // draw frame
+obsid.sin(x)  obsid.cos(x)  obsid.sqrt(x)  obsid.abs(x)
+obsid.min(a, b)  obsid.max(a, b)  obsid.floor(x)  obsid.ceil(x)
+obsid.pow(x, y)  obsid.pi()
+obsid.to_float(i: Int) -> Float
+obsid.to_int(f: Float) -> Int
 ```
 
 ### State
 
-Cross-function state for sharing handles between `main` and `render_frame`:
-
 ```almide
-obsid.set_state(slot, value)                               // store integer
-obsid.get_state(slot)                                      // retrieve integer
+obsid.set_state(slot, value)    // persist Int across frames
+obsid.get_state(slot) -> Int
+obsid.set_state_f(slot, value)  // persist Float across frames
+obsid.get_state_f(slot) -> Float
 ```
 
-## Architecture
+## Rendering Pipeline
 
-```
-Almide code (scene description + animation logic)
-  ↓ compile
-WASM binary (3.8 KB) — @extern(wasm, "obsid", ...) imports
-  ↓ load
-host/obsid.js — scene graph, geometry generators, Lambert shader, WebGL renderer
-  ↓ render
-Browser GPU
-```
+1. WASM `main()` runs: creates chunks, fills blocks, calls `build_chunk()`
+2. JS meshing: for each block, check 6 neighbors → emit visible faces with per-face AO and color noise
+3. WASM `render_frame(time)` runs each frame: updates camera/lights, calls `render()`
+4. JS rendering: iterate chunks, bind VBO/IBO, `drawElements()` — no scene graph traversal
 
-The WASM binary contains only your scene logic. The JS host (~300 lines) handles all WebGL rendering, matrix math, and geometry generation. This separation keeps WASM binaries tiny while providing full 3D capabilities.
+Per-chunk cost: 1 uniform upload (`u_chunk_pos`) + 2 buffer binds + 1 draw call. Voxel chunks are axis-aligned → no model matrix multiplication.
+
+## Almide Compiler Notes
+
+Building for WASM requires `almide build src/main.almd --target wasm` (explicit file path, not project mode).
+
+All `@extern(wasm, ...)` functions returning `Unit` require the compiler's DCE fix ([almide/almide@5de3c3c](https://github.com/almide/almide/commit/5de3c3ce)) to prevent dead-code elimination of FFI calls.
