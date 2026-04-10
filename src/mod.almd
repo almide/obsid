@@ -144,7 +144,7 @@ fn to_int(x: Float) -> Int
 //   state_f 31-32: last pointer x/y
 //   state   30: dragging flag
 
-fn orbit_init(tx: Float, ty: Float, tz: Float, yaw: Float, pitch: Float, dist: Float, min_dist: Float, max_dist: Float) -> Unit = {
+effect fn orbit_init(tx: Float, ty: Float, tz: Float, yaw: Float, pitch: Float, dist: Float, min_dist: Float, max_dist: Float) -> Unit = {
   set_state_f(20, yaw)
   set_state_f(21, pitch)
   set_state_f(22, dist)
@@ -156,7 +156,7 @@ fn orbit_init(tx: Float, ty: Float, tz: Float, yaw: Float, pitch: Float, dist: F
   set_state(30, 0)
 }
 
-fn orbit_apply(fov: Float, aspect: Float, near: Float, far: Float) -> Unit = {
+effect fn orbit_apply(fov: Float, aspect: Float, near: Float, far: Float) -> Unit = {
   let yaw = get_state_f(20)
   let pitch = get_state_f(21)
   let dist = get_state_f(22)
@@ -173,17 +173,17 @@ fn orbit_apply(fov: Float, aspect: Float, near: Float, far: Float) -> Unit = {
   set_camera(fov, aspect, near, far, px, py, pz, tx, ty, tz)
 }
 
-fn orbit_on_pointer_down(x: Float, y: Float) -> Unit = {
+effect fn orbit_on_pointer_down(x: Float, y: Float) -> Unit = {
   set_state(30, 1)
   set_state_f(31, x)
   set_state_f(32, y)
 }
 
-fn orbit_on_pointer_up() -> Unit = {
+effect fn orbit_on_pointer_up() -> Unit = {
   set_state(30, 0)
 }
 
-fn orbit_on_pointer_move(x: Float, y: Float) -> Unit = {
+effect fn orbit_on_pointer_move(x: Float, y: Float) -> Unit = {
   if get_state(30) == 0 then () else {
     let dx = x - get_state_f(31)
     let dy = y - get_state_f(32)
@@ -199,7 +199,7 @@ fn orbit_on_pointer_move(x: Float, y: Float) -> Unit = {
   }
 }
 
-fn orbit_on_wheel(delta_y: Float) -> Unit = {
+effect fn orbit_on_wheel(delta_y: Float) -> Unit = {
   let d = get_state_f(22)
   let factor = pow(1.001, delta_y)
   let new_d = d * factor

@@ -2,17 +2,18 @@
 import self as obsid
 
 // Event handlers delegate to obsid's default orbit camera.
-// Override these to implement custom camera behavior.
-fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = {
+// Marked as effect fn to verify the compiler fix for module-qualified
+// effect calls in wrap_tail_in_ok.
+effect fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = {
   obsid.orbit_on_pointer_down(x, y)
 }
-fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = {
+effect fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = {
   obsid.orbit_on_pointer_up()
 }
-fn on_pointer_move(x: Float, y: Float) -> Unit = {
+effect fn on_pointer_move(x: Float, y: Float) -> Unit = {
   obsid.orbit_on_pointer_move(x, y)
 }
-fn on_wheel(delta_y: Float) -> Unit = {
+effect fn on_wheel(delta_y: Float) -> Unit = {
   obsid.orbit_on_wheel(delta_y)
 }
 
@@ -72,7 +73,7 @@ effect fn main() -> Unit = {
   obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.3, 7.0, 3.0, 20.0)
 }
 
-fn render_frame(time: Float) -> Unit = {
+effect fn render_frame(time: Float) -> Unit = {
   obsid.orbit_apply(60.0, obsid.get_aspect(), 0.1, 100.0)
 
   obsid.set_dir_light(0.25, 0.25, 0.3, 0.6, 0.8, 0.4)

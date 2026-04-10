@@ -6,10 +6,10 @@
 
 import self as obsid
 
-fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_down(x, y) }
-fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_up() }
-fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
-fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
+effect fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_down(x, y) }
+effect fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_up() }
+effect fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
+effect fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
 
 effect fn main() -> Unit = {
   let size = 32
@@ -92,7 +92,7 @@ effect fn main() -> Unit = {
   obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.3, 32.0, 10.0, 80.0)
 }
 
-fn render_frame(time: Float) -> Unit = {
+effect fn render_frame(time: Float) -> Unit = {
   obsid.orbit_apply(60.0, obsid.get_aspect(), 0.1, 200.0)
   obsid.set_dir_light(0.7, 0.7, 0.75, 0.5, 1.0, 0.4)
   obsid.set_ambient(0.12, 0.14, 0.2)

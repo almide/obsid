@@ -7,10 +7,10 @@
 
 import self as obsid
 
-fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_down(x, y) }
-fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_up() }
-fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
-fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
+effect fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_down(x, y) }
+effect fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_up() }
+effect fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
+effect fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
 
 effect fn main() -> Unit = {
   // ── Procedural texture: 64x64 RGBA checker ──
@@ -85,7 +85,7 @@ effect fn main() -> Unit = {
   obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.4, 4.0, 2.0, 15.0)
 }
 
-fn render_frame(time: Float) -> Unit = {
+effect fn render_frame(time: Float) -> Unit = {
   obsid.orbit_apply(60.0, obsid.get_aspect(), 0.1, 100.0)
   obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 1.0, 0.6)
   obsid.set_ambient(0.25, 0.25, 0.3)
