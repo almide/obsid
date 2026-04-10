@@ -1,0 +1,73 @@
+// obsid example — procedural UV sphere
+// Demonstrates parametric mesh generation with nested for loops.
+
+import self as obsid
+
+effect fn main() -> Unit = {
+  let segs = 32
+  let rings = 16
+  let radius = 2.0
+
+  let vc = (rings + 1) * (segs + 1)
+  let ic = rings * segs * 6
+
+  let verts = bytes.new(vc * 36)
+  let idx = bytes.new(ic * 2)
+
+  // Vertices
+  for ring in 0..(rings + 1) {
+    for seg in 0..(segs + 1) {
+      let phi = obsid.pi() * obsid.to_float(ring) / obsid.to_float(rings)
+      let theta = 2.0 * obsid.pi() * obsid.to_float(seg) / obsid.to_float(segs)
+      let sin_phi = obsid.sin(phi)
+      let nx = sin_phi * obsid.cos(theta)
+      let ny = obsid.cos(phi)
+      let nz = sin_phi * obsid.sin(theta)
+
+      let vi = ring * (segs + 1) + seg
+      let off = vi * 36
+
+      bytes.set_f32_le(verts, off + 0, nx * radius)
+      bytes.set_f32_le(verts, off + 4, ny * radius)
+      bytes.set_f32_le(verts, off + 8, nz * radius)
+      bytes.set_f32_le(verts, off + 12, nx)
+      bytes.set_f32_le(verts, off + 16, ny)
+      bytes.set_f32_le(verts, off + 20, nz)
+      // Gradient: top white, bottom teal
+      let t = (ny + 1.0) * 0.5
+      bytes.set_f32_le(verts, off + 24, 0.2 + t * 0.7)
+      bytes.set_f32_le(verts, off + 28, 0.5 + t * 0.4)
+      bytes.set_f32_le(verts, off + 32, 0.6 + t * 0.3)
+    }
+  }
+
+  // Indices
+  for ring in 0..rings {
+    for seg in 0..segs {
+      let qi = ring * segs + seg
+      let off = qi * 12
+      let a = ring * (segs + 1) + seg
+      let b = a + segs + 1
+      bytes.set_u16_le(idx, off + 0, a)
+      bytes.set_u16_le(idx, off + 2, b)
+      bytes.set_u16_le(idx, off + 4, a + 1)
+      bytes.set_u16_le(idx, off + 6, b)
+      bytes.set_u16_le(idx, off + 8, b + 1)
+      bytes.set_u16_le(idx, off + 10, a + 1)
+    }
+  }
+
+  obsid.create_mesh(0)
+  obsid.upload_mesh(0, bytes.data_ptr(verts), vc, bytes.data_ptr(idx), ic)
+}
+
+pub fn render_frame(time: Float) -> Unit = {
+  let cx = obsid.sin(time * 0.3) * 6.0
+  let cz = obsid.cos(time * 0.3) * 6.0
+  let cy = 2.0 + obsid.sin(time * 0.15) * 1.5
+  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, cx, cy, cz, 0.0, 0.0, 0.0)
+  obsid.set_dir_light(1.0, 0.95, 0.85, 0.6, 0.8, 0.4)
+  obsid.set_ambient(0.15, 0.18, 0.25)
+  obsid.set_fog(0.08, 0.1, 0.18, 15.0, 50.0)
+  obsid.render()
+}

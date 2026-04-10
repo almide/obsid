@@ -1,0 +1,59 @@
+// obsid example — hello triangle
+// The simplest possible mesh: 3 vertices with per-vertex colors.
+
+import self as obsid
+
+effect fn main() -> Unit = {
+  let verts = bytes.new(3 * 36)
+  let idx = bytes.new(3 * 2)
+
+  // v0 — top, red
+  bytes.set_f32_le(verts, 0, 0.0)
+  bytes.set_f32_le(verts, 4, 1.2)
+  bytes.set_f32_le(verts, 8, 0.0)
+  bytes.set_f32_le(verts, 12, 0.0)
+  bytes.set_f32_le(verts, 16, 0.0)
+  bytes.set_f32_le(verts, 20, 1.0)
+  bytes.set_f32_le(verts, 24, 1.0)
+  bytes.set_f32_le(verts, 28, 0.25)
+  bytes.set_f32_le(verts, 32, 0.3)
+
+  // v1 — bottom-left, green
+  bytes.set_f32_le(verts, 36, 0.0 - 1.1)
+  bytes.set_f32_le(verts, 40, 0.0 - 0.8)
+  bytes.set_f32_le(verts, 44, 0.0)
+  bytes.set_f32_le(verts, 48, 0.0)
+  bytes.set_f32_le(verts, 52, 0.0)
+  bytes.set_f32_le(verts, 56, 1.0)
+  bytes.set_f32_le(verts, 60, 0.25)
+  bytes.set_f32_le(verts, 64, 1.0)
+  bytes.set_f32_le(verts, 68, 0.4)
+
+  // v2 — bottom-right, blue
+  bytes.set_f32_le(verts, 72, 1.1)
+  bytes.set_f32_le(verts, 76, 0.0 - 0.8)
+  bytes.set_f32_le(verts, 80, 0.0)
+  bytes.set_f32_le(verts, 84, 0.0)
+  bytes.set_f32_le(verts, 88, 0.0)
+  bytes.set_f32_le(verts, 92, 1.0)
+  bytes.set_f32_le(verts, 96, 0.25)
+  bytes.set_f32_le(verts, 100, 0.4)
+  bytes.set_f32_le(verts, 104, 1.0)
+
+  bytes.set_u16_le(idx, 0, 0)
+  bytes.set_u16_le(idx, 2, 1)
+  bytes.set_u16_le(idx, 4, 2)
+
+  obsid.create_mesh(0)
+  obsid.upload_mesh(0, bytes.data_ptr(verts), 3, bytes.data_ptr(idx), 3)
+}
+
+pub fn render_frame(time: Float) -> Unit = {
+  let cx = obsid.sin(time * 0.4) * 3.5
+  let cz = obsid.cos(time * 0.4) * 3.5
+  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, cx, 0.3, cz, 0.0, 0.0, 0.0)
+  obsid.set_dir_light(1.0, 1.0, 1.0, 0.0, 0.2, 1.0)
+  obsid.set_ambient(0.35, 0.35, 0.4)
+  obsid.set_fog(0.1, 0.1, 0.15, 30.0, 80.0)
+  obsid.render()
+}

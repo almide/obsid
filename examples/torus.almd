@@ -1,0 +1,82 @@
+// obsid example — procedural torus
+// A toroidal surface of revolution with analytic normals.
+
+import self as obsid
+
+effect fn main() -> Unit = {
+  let major = 2.0          // radius from torus center to tube center
+  let minor = 0.6          // tube radius
+  let major_segs = 48      // segments around the main ring
+  let minor_segs = 16      // segments around the tube
+
+  let vc = (major_segs + 1) * (minor_segs + 1)
+  let ic = major_segs * minor_segs * 6
+
+  let verts = bytes.new(vc * 36)
+  let idx = bytes.new(ic * 2)
+
+  for j in 0..(major_segs + 1) {
+    for i in 0..(minor_segs + 1) {
+      let u = 2.0 * obsid.pi() * obsid.to_float(i) / obsid.to_float(minor_segs)
+      let v = 2.0 * obsid.pi() * obsid.to_float(j) / obsid.to_float(major_segs)
+      let cu = obsid.cos(u)
+      let su = obsid.sin(u)
+      let cv = obsid.cos(v)
+      let sv = obsid.sin(v)
+
+      // Position
+      let x = (major + minor * cu) * cv
+      let y = minor * su
+      let z = (major + minor * cu) * sv
+
+      // Normal: pointing outward from tube center
+      let nx = cu * cv
+      let ny = su
+      let nz = cu * sv
+
+      let vi = j * (minor_segs + 1) + i
+      let off = vi * 36
+
+      bytes.set_f32_le(verts, off + 0, x)
+      bytes.set_f32_le(verts, off + 4, y)
+      bytes.set_f32_le(verts, off + 8, z)
+      bytes.set_f32_le(verts, off + 12, nx)
+      bytes.set_f32_le(verts, off + 16, ny)
+      bytes.set_f32_le(verts, off + 20, nz)
+      // Color: hue shifts along the major ring
+      let t = (cv + 1.0) * 0.5
+      bytes.set_f32_le(verts, off + 24, 0.9 - t * 0.4)
+      bytes.set_f32_le(verts, off + 28, 0.3 + t * 0.5)
+      bytes.set_f32_le(verts, off + 32, 0.4 + t * 0.4)
+    }
+  }
+
+  for j in 0..major_segs {
+    for i in 0..minor_segs {
+      let qi = j * minor_segs + i
+      let off = qi * 12
+      let a = j * (minor_segs + 1) + i
+      let b = a + minor_segs + 1
+      bytes.set_u16_le(idx, off + 0, a)
+      bytes.set_u16_le(idx, off + 2, b)
+      bytes.set_u16_le(idx, off + 4, a + 1)
+      bytes.set_u16_le(idx, off + 6, b)
+      bytes.set_u16_le(idx, off + 8, b + 1)
+      bytes.set_u16_le(idx, off + 10, a + 1)
+    }
+  }
+
+  obsid.create_mesh(0)
+  obsid.upload_mesh(0, bytes.data_ptr(verts), vc, bytes.data_ptr(idx), ic)
+}
+
+pub fn render_frame(time: Float) -> Unit = {
+  let cx = obsid.sin(time * 0.25) * 7.0
+  let cz = obsid.cos(time * 0.25) * 7.0
+  let cy = 3.0 + obsid.sin(time * 0.15) * 2.0
+  obsid.set_camera(55.0, obsid.get_aspect(), 0.1, 100.0, cx, cy, cz, 0.0, 0.0, 0.0)
+  obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 0.9, 0.3)
+  obsid.set_ambient(0.15, 0.16, 0.22)
+  obsid.set_fog(0.06, 0.08, 0.14, 20.0, 60.0)
+  obsid.render()
+}

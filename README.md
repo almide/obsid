@@ -77,7 +77,12 @@ cd host && python3 -m http.server 8765
 
 Open http://localhost:8765
 
-See `src/main.almd` for a complete heightmap terrain example with analytic gradient-based normals.
+See [`examples/`](examples/) for more:
+
+- [`triangle.almd`](examples/triangle.almd) — hello world
+- [`sphere.almd`](examples/sphere.almd) — procedural UV sphere
+- [`torus.almd`](examples/torus.almd) — procedural torus
+- [`src/main.almd`](src/main.almd) — heightmap terrain with analytic normals
 
 ## API
 
