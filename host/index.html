@@ -2,29 +2,95 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>obsid</title>
+  <title>obsid — Almide 3D rendering foundation</title>
   <style>
-    * { margin: 0; padding: 0; }
-    body { overflow: hidden; background: #020104; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #020104; font-family: -apple-system, system-ui, sans-serif; color: #fff; }
     canvas { display: block; width: 100vw; height: 100vh; }
-    #stats {
-      position: fixed; top: 12px; left: 12px;
-      color: #fff; font: 13px/1.5 monospace;
-      background: rgba(0,0,0,0.5); padding: 6px 10px;
-      border-radius: 4px; pointer-events: none;
+
+    #ui {
+      position: fixed; top: 12px; left: 12px; right: 12px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      pointer-events: none; gap: 12px;
     }
+    #picker {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+      padding: 6px; border-radius: 8px; pointer-events: auto;
+    }
+    #picker button {
+      background: transparent; color: #ccc; border: 1px solid transparent;
+      font: 13px/1 monospace; padding: 8px 12px; border-radius: 4px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    #picker button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    #picker button.active {
+      color: #fff; background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.25);
+    }
+    #stats {
+      background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+      color: #ccc; font: 13px/1.5 monospace;
+      padding: 8px 12px; border-radius: 8px; pointer-events: none;
+      white-space: nowrap;
+    }
+    #title {
+      position: fixed; bottom: 12px; left: 12px; right: 12px;
+      display: flex; justify-content: space-between;
+      color: #888; font: 11px/1.4 monospace; pointer-events: none;
+    }
+    #title a { color: #aaa; text-decoration: none; pointer-events: auto; }
+    #title a:hover { color: #fff; }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <div id="stats"></div>
+
+  <div id="ui">
+    <div id="picker"></div>
+    <div id="stats">— fps</div>
+  </div>
+
+  <div id="title">
+    <span>obsid — Almide 3D rendering foundation</span>
+    <a href="https://github.com/almide/obsid" target="_blank">github.com/almide/obsid</a>
+  </div>
+
   <script src="obsid.js"></script>
   <script>
+    const EXAMPLES = [
+      { id: "heightmap", label: "Heightmap" },
+      { id: "triangle",  label: "Triangle"  },
+      { id: "sphere",    label: "Sphere"    },
+      { id: "torus",     label: "Torus"     },
+    ];
+
+    const params = new URL(location).searchParams;
+    const current = EXAMPLES.find(e => e.id === params.get("ex")) || EXAMPLES[0];
+
+    // Build picker
+    const picker = document.getElementById("picker");
+    for (const ex of EXAMPLES) {
+      const b = document.createElement("button");
+      b.textContent = ex.label;
+      if (ex.id === current.id) b.classList.add("active");
+      b.addEventListener("click", () => {
+        if (ex.id !== current.id) {
+          const url = new URL(location);
+          url.searchParams.set("ex", ex.id);
+          location.href = url.toString();
+        }
+      });
+      picker.appendChild(b);
+    }
+
+    // Canvas sizing (DPR-aware)
     const c = document.getElementById("canvas");
     const dpr = Math.min(devicePixelRatio, 1.5);
     c.width = window.innerWidth * dpr;
     c.height = window.innerHeight * dpr;
 
+    // FPS counter
     const statsEl = document.getElementById("stats");
     let frames = 0, lastTime = performance.now();
     function updateStats() {
@@ -33,7 +99,7 @@
       if (now - lastTime >= 500) {
         const fps = (frames * 1000 / (now - lastTime)).toFixed(1);
         const ms = ((now - lastTime) / frames).toFixed(2);
-        statsEl.textContent = `${fps} fps / ${ms} ms`;
+        statsEl.textContent = `${fps} fps · ${ms} ms`;
         frames = 0;
         lastTime = now;
       }
@@ -41,8 +107,10 @@
     }
     requestAnimationFrame(updateStats);
 
-    Obsid.load("app.wasm", "canvas")
+    // Load WASM
+    Obsid.load(`examples/${current.id}.wasm`, "canvas")
       .catch(e => console.error("Failed:", e));
+
     window.addEventListener("resize", () => location.reload());
   </script>
 </body>

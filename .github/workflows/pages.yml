@@ -1,0 +1,55 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Almide
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/almide/almide/main/tools/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Verify Almide version
+        run: almide --version
+
+      - name: Build all examples
+        run: |
+          mkdir -p host/examples
+          almide build src/main.almd      --target wasm -o host/examples/heightmap.wasm
+          almide build examples/triangle.almd --target wasm -o host/examples/triangle.wasm
+          almide build examples/sphere.almd   --target wasm -o host/examples/sphere.wasm
+          almide build examples/torus.almd    --target wasm -o host/examples/torus.wasm
+          ls -la host/examples/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: host
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
