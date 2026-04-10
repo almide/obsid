@@ -31,6 +31,18 @@ fn upload_mesh(id: Int, vert_ptr: Int, vert_count: Int, idx_ptr: Int, idx_count:
 @extern(wasm, "obsid", "set_mesh_position")
 fn set_mesh_position(id: Int, x: Float, y: Float, z: Float) -> Unit
 
+@extern(wasm, "obsid", "set_mesh_rotation")
+fn set_mesh_rotation(id: Int, x: Float, y: Float, z: Float) -> Unit
+
+@extern(wasm, "obsid", "set_mesh_scale")
+fn set_mesh_scale(id: Int, x: Float, y: Float, z: Float) -> Unit
+
+@extern(wasm, "obsid", "set_mesh_material")
+fn set_mesh_material(id: Int, shininess: Float, spec_r: Float, spec_g: Float, spec_b: Float) -> Unit
+
+@extern(wasm, "obsid", "set_mesh_alpha")
+fn set_mesh_alpha(id: Int, alpha: Float) -> Unit
+
 @extern(wasm, "obsid", "set_mesh_visible")
 fn set_mesh_visible(id: Int, visible: Int) -> Unit
 
@@ -55,6 +67,12 @@ fn set_ambient(r: Float, g: Float, b: Float) -> Unit
 
 @extern(wasm, "obsid", "set_fog")
 fn set_fog(r: Float, g: Float, b: Float, near: Float, far: Float) -> Unit
+
+@extern(wasm, "obsid", "set_point_light")
+fn set_point_light(idx: Int, x: Float, y: Float, z: Float, r: Float, g: Float, b: Float, range: Float) -> Unit
+
+@extern(wasm, "obsid", "clear_point_light")
+fn clear_point_light(idx: Int) -> Unit
 
 // ── Rendering ───────────────────────────────────────
 

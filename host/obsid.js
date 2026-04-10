@@ -1,21 +1,17 @@
-// obsid — generic mesh renderer for Almide
+// obsid — 3D rendering foundation for Almide
 //
-// WASM builds vertex/index data in linear memory using bytes.set_f32_le /
-// bytes.set_u16_le and passes pointers via bytes.data_ptr. JS reads from
-// memory.buffer with typed-array views (zero copy) and uploads to WebGL.
-//
-// Vertex format (36 bytes): pos[3] f32 + norm[3] f32 + color[3] f32
-// Index format: u16
+// Built on obsid-gl (thin WebGL WASM bridge).
+// Features: mesh with full TRS transform, Phong shading (diffuse + specular),
+// directional + multiple point lights, fog, transparency.
 //
 // Usage:
-//   const instance = await Obsid.load("app.wasm", "canvas");
+//   <script src="obsid-gl.js"></script>
+//   <script src="obsid.js"></script>
+//   <script>Obsid.load("app.wasm", "canvas")</script>
 
 const Obsid = {
   async load(wasmUrl, canvasEl) {
-    const canvas = typeof canvasEl === "string" ? document.getElementById(canvasEl) : canvasEl;
-    if (!canvas) throw new Error(`Canvas not found: ${canvasEl}`);
-    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
-    if (!gl) throw new Error("WebGL not supported");
+    const { gl, canvas } = ObsidGL.init(canvasEl);
 
     let memory;
     const state = {}, stateF = {};
@@ -47,77 +43,132 @@ const Obsid = {
       }
       return o;
     }
-
-    // ── Mesh Storage ──────────────────────────────────
-    const meshes = new Map();
-
-    function uploadMesh(id, vertPtr, vertCount, idxPtr, idxCount) {
-      let m = meshes.get(id);
-      if (!m) { m = { pos:[0,0,0], visible:true, vbo:null, ibo:null, count:0 }; meshes.set(id, m); }
-      // Zero-copy views into WASM linear memory
-      const verts = new Float32Array(memory.buffer, vertPtr, vertCount * 9);
-      const indices = new Uint16Array(memory.buffer, idxPtr, idxCount);
-      if (!m.vbo) { m.vbo = gl.createBuffer(); m.ibo = gl.createBuffer(); }
-      gl.bindBuffer(gl.ARRAY_BUFFER, m.vbo);
-      gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ibo);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-      m.count = idxCount;
+    // T * R * S where R = Rz * Ry * Rx (column-major)
+    function mat4ComposeTRS(pos, rot, scl) {
+      const cx=Math.cos(rot[0]), six=Math.sin(rot[0]);
+      const cy=Math.cos(rot[1]), siy=Math.sin(rot[1]);
+      const cz=Math.cos(rot[2]), siz=Math.sin(rot[2]);
+      const sx=scl[0], sy=scl[1], sz=scl[2];
+      return new Float32Array([
+        (cy*cz)*sx,                  (cy*siz)*sx,                 (-siy)*sx,   0,
+        (six*siy*cz - cx*siz)*sy,    (six*siy*siz + cx*cz)*sy,    (six*cy)*sy, 0,
+        (cx*siy*cz + six*siz)*sz,    (cx*siy*siz - six*cz)*sz,    (cx*cy)*sz,  0,
+        pos[0], pos[1], pos[2], 1
+      ]);
     }
 
     // ── Shader ────────────────────────────────────────
+    const MAX_POINTS = 4;
     const VS = `
+      precision mediump float;
       attribute vec3 a_pos, a_norm, a_color;
       uniform mat4 u_vp;
-      uniform vec3 u_offset, u_eye;
-      varying vec3 v_norm, v_color;
+      uniform mat4 u_model;
+      uniform vec3 u_eye;
+      varying vec3 v_norm, v_color, v_wpos;
       varying float v_dist;
       void main() {
-        vec3 wp = a_pos + u_offset;
-        v_norm = a_norm;
+        vec4 world = u_model * vec4(a_pos, 1.0);
+        v_wpos = world.xyz;
+        v_norm = mat3(u_model) * a_norm;
         v_color = a_color;
-        v_dist = length(wp - u_eye);
-        gl_Position = u_vp * vec4(wp, 1.0);
+        v_dist = length(v_wpos - u_eye);
+        gl_Position = u_vp * world;
       }
     `;
     const FS = `
       precision mediump float;
-      varying vec3 v_norm, v_color;
+      varying vec3 v_norm, v_color, v_wpos;
       varying float v_dist;
+      uniform vec3 u_eye;
       uniform vec3 u_sun_color, u_sun_dir, u_ambient, u_fog_color;
       uniform vec2 u_fog_range;
+      uniform float u_shininess;
+      uniform vec3 u_specular;
+      uniform float u_alpha;
+      uniform int u_num_points;
+      uniform vec3 u_point_pos[${MAX_POINTS}];
+      uniform vec3 u_point_color[${MAX_POINTS}];
+      uniform float u_point_range[${MAX_POINTS}];
       void main() {
-        float diff = max(dot(normalize(v_norm), normalize(u_sun_dir)), 0.0);
-        vec3 c = v_color * (u_ambient + u_sun_color * diff);
+        vec3 n = normalize(v_norm);
+        vec3 viewDir = normalize(u_eye - v_wpos);
+
+        // Directional (sun) — Lambert + Blinn-Phong
+        vec3 sunDir = normalize(u_sun_dir);
+        float sunDiff = max(dot(n, sunDir), 0.0);
+        vec3 sunHalf = normalize(sunDir + viewDir);
+        float sunSpec = sunDiff > 0.0 ? pow(max(dot(n, sunHalf), 0.0), u_shininess) : 0.0;
+        vec3 lighting = u_ambient + u_sun_color * sunDiff;
+        vec3 specular = u_sun_color * sunSpec;
+
+        // Point lights
+        for (int i = 0; i < ${MAX_POINTS}; i++) {
+          if (i >= u_num_points) break;
+          vec3 toLight = u_point_pos[i] - v_wpos;
+          float dist = length(toLight);
+          vec3 dir = toLight / dist;
+          float atten = clamp(1.0 - dist / u_point_range[i], 0.0, 1.0);
+          atten *= atten;
+          float diff = max(dot(n, dir), 0.0);
+          vec3 half_v = normalize(dir + viewDir);
+          float spec = diff > 0.0 ? pow(max(dot(n, half_v), 0.0), u_shininess) : 0.0;
+          lighting += u_point_color[i] * diff * atten;
+          specular += u_point_color[i] * spec * atten;
+        }
+
+        vec3 color = v_color * lighting + specular * u_specular;
+
+        // Fog
         float fog = clamp((u_fog_range.y - v_dist) / (u_fog_range.y - u_fog_range.x), 0.0, 1.0);
-        gl_FragColor = vec4(mix(u_fog_color, c, fog), 1.0);
+        color = mix(u_fog_color, color, fog);
+
+        gl_FragColor = vec4(color, u_alpha);
       }
     `;
 
-    let program, aPos, aNorm, aColor;
-    let uVP, uOffset, uEye, uSunColor, uSunDir, uAmbient, uFogColor, uFogRange;
+    const program = ObsidGL.createProgram(gl, VS, FS);
+    ObsidGL.useProgram(gl, program);
+    const attr = ObsidGL.getAttribLocs(gl, program, ["a_pos", "a_norm", "a_color"]);
+    const uni = ObsidGL.getUniformLocs(gl, program, [
+      "u_vp", "u_model", "u_eye",
+      "u_sun_color", "u_sun_dir", "u_ambient",
+      "u_fog_color", "u_fog_range",
+      "u_shininess", "u_specular", "u_alpha",
+      "u_num_points",
+    ]);
+    // Array uniforms need per-element locations
+    const uniPointPos = [], uniPointColor = [], uniPointRange = [];
+    for (let i = 0; i < MAX_POINTS; i++) {
+      uniPointPos.push(gl.getUniformLocation(program, `u_point_pos[${i}]`));
+      uniPointColor.push(gl.getUniformLocation(program, `u_point_color[${i}]`));
+      uniPointRange.push(gl.getUniformLocation(program, `u_point_range[${i}]`));
+    }
 
-    function initShader() {
-      const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs,VS); gl.compileShader(vs);
-      if (!gl.getShaderParameter(vs,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(vs));
-      const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs,FS); gl.compileShader(fs);
-      if (!gl.getShaderParameter(fs,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(fs));
-      program = gl.createProgram(); gl.attachShader(program,vs); gl.attachShader(program,fs);
-      gl.linkProgram(program);
-      if (!gl.getProgramParameter(program,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(program));
-      gl.useProgram(program);
-      const u = n => gl.getUniformLocation(program,n);
-      uVP=u("u_vp"); uOffset=u("u_offset"); uEye=u("u_eye");
-      uSunColor=u("u_sun_color"); uSunDir=u("u_sun_dir");
-      uAmbient=u("u_ambient"); uFogColor=u("u_fog_color"); uFogRange=u("u_fog_range");
-      aPos=gl.getAttribLocation(program,"a_pos");
-      aNorm=gl.getAttribLocation(program,"a_norm");
-      aColor=gl.getAttribLocation(program,"a_color");
-      gl.enableVertexAttribArray(aPos);
-      gl.enableVertexAttribArray(aNorm);
-      gl.enableVertexAttribArray(aColor);
-      gl.enable(gl.DEPTH_TEST);
-      gl.enable(gl.CULL_FACE);
+    ObsidGL.enableDepthTest(gl);
+    ObsidGL.enableCullFace(gl);
+
+    // ── Mesh Storage ──────────────────────────────────
+    const meshes = new Map();
+
+    function newMesh() {
+      return {
+        pos: [0,0,0], rot: [0,0,0], scl: [1,1,1],
+        visible: true,
+        vbo: null, ibo: null, count: 0,
+        shininess: 32, specular: [0,0,0], alpha: 1,
+      };
+    }
+
+    function uploadMesh(id, vertPtr, vertCount, idxPtr, idxCount) {
+      let m = meshes.get(id);
+      if (!m) { m = newMesh(); meshes.set(id, m); }
+      const verts = ObsidGL.viewF32(memory, vertPtr, vertCount * 9);
+      const indices = ObsidGL.viewU16(memory, idxPtr, idxCount);
+      if (!m.vbo) { m.vbo = ObsidGL.createBuffer(gl); m.ibo = ObsidGL.createBuffer(gl); }
+      ObsidGL.uploadVertexBuffer(gl, m.vbo, verts);
+      ObsidGL.uploadIndexBuffer(gl, m.ibo, indices);
+      m.count = idxCount;
     }
 
     // ── Render State ──────────────────────────────────
@@ -125,41 +176,83 @@ const Obsid = {
     let sun = { color:[1,.95,.9], dir:[.5,1,.3] };
     let amb = [.15,.15,.2];
     let fog = { color:[.55,.65,.85], near:60, far:150 };
+    const points = Array.from({length: MAX_POINTS}, () => ({
+      pos: [0,0,0], color: [0,0,0], range: 0, active: false,
+    }));
+
+    function drawMesh(m) {
+      const model = mat4ComposeTRS(m.pos, m.rot, m.scl);
+      ObsidGL.uniformMatrix4fv(gl, uni.u_model, model);
+      ObsidGL.uniform1f(gl, uni.u_shininess, m.shininess);
+      ObsidGL.uniform3fv(gl, uni.u_specular, m.specular);
+      ObsidGL.uniform1f(gl, uni.u_alpha, m.alpha);
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_pos, 3, 36, 0);
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_norm, 3, 36, 12);
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_color, 3, 36, 24);
+      ObsidGL.drawElementsU16(gl, m.ibo, m.count);
+    }
 
     function renderMeshes() {
-      gl.clearColor(fog.color[0],fog.color[1],fog.color[2],1);
-      gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      const vp = mat4Mul(mat4Perspective(cam.fov,cam.aspect,cam.near,cam.far),
-                         mat4LookAt(cam.pos,cam.target,[0,1,0]));
-      gl.uniformMatrix4fv(uVP,false,vp);
-      gl.uniform3fv(uEye,cam.pos);
-      gl.uniform3fv(uSunColor,sun.color);
-      gl.uniform3fv(uSunDir,sun.dir);
-      gl.uniform3fv(uAmbient,amb);
-      gl.uniform3fv(uFogColor,fog.color);
-      gl.uniform2f(uFogRange,fog.near,fog.far);
-      for (const [,m] of meshes) {
+      ObsidGL.clear(gl, fog.color[0], fog.color[1], fog.color[2]);
+      const vp = mat4Mul(
+        mat4Perspective(cam.fov, cam.aspect, cam.near, cam.far),
+        mat4LookAt(cam.pos, cam.target, [0,1,0]),
+      );
+      ObsidGL.uniformMatrix4fv(gl, uni.u_vp, vp);
+      ObsidGL.uniform3fv(gl, uni.u_eye, cam.pos);
+      ObsidGL.uniform3fv(gl, uni.u_sun_color, sun.color);
+      ObsidGL.uniform3fv(gl, uni.u_sun_dir, sun.dir);
+      ObsidGL.uniform3fv(gl, uni.u_ambient, amb);
+      ObsidGL.uniform3fv(gl, uni.u_fog_color, fog.color);
+      ObsidGL.uniform2f(gl, uni.u_fog_range, fog.near, fog.far);
+
+      // Upload point light uniforms
+      let activeCount = 0;
+      for (let i = 0; i < MAX_POINTS; i++) {
+        if (points[i].active && points[i].range > 0) {
+          ObsidGL.uniform3fv(gl, uniPointPos[activeCount], points[i].pos);
+          ObsidGL.uniform3fv(gl, uniPointColor[activeCount], points[i].color);
+          ObsidGL.uniform1f(gl, uniPointRange[activeCount], points[i].range);
+          activeCount++;
+        }
+      }
+      ObsidGL.uniform1i(gl, uni.u_num_points, activeCount);
+
+      // Collect and sort
+      const opaque = [], transparent = [];
+      for (const [, m] of meshes) {
         if (!m.visible || !m.count) continue;
-        gl.uniform3fv(uOffset,m.pos);
-        gl.bindBuffer(gl.ARRAY_BUFFER,m.vbo);
-        gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,36,0);
-        gl.vertexAttribPointer(aNorm,3,gl.FLOAT,false,36,12);
-        gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,36,24);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ibo);
-        gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_SHORT,0);
+        (m.alpha < 1 ? transparent : opaque).push(m);
+      }
+
+      // Opaque pass
+      ObsidGL.depthMask(gl, true);
+      ObsidGL.disableBlend(gl);
+      for (const m of opaque) drawMesh(m);
+
+      // Transparent pass (back-to-front)
+      if (transparent.length > 0) {
+        transparent.sort((a, b) => {
+          const da = (a.pos[0]-cam.pos[0])**2 + (a.pos[1]-cam.pos[1])**2 + (a.pos[2]-cam.pos[2])**2;
+          const db = (b.pos[0]-cam.pos[0])**2 + (b.pos[1]-cam.pos[1])**2 + (b.pos[2]-cam.pos[2])**2;
+          return db - da;
+        });
+        ObsidGL.enableBlend(gl);
+        ObsidGL.depthMask(gl, false);
+        for (const m of transparent) drawMesh(m);
+        ObsidGL.depthMask(gl, true);
+        ObsidGL.disableBlend(gl);
       }
     }
 
     // ── WASM Imports ──────────────────────────────────
     const imports = {
       obsid: {
-        // State
         set_state(s,v){ state[N(s)]=N(v); },
         get_state(s){ return B(state[N(s)]??0); },
         set_state_f(s,v){ stateF[N(s)]=v; },
         get_state_f(s){ return stateF[N(s)]??0; },
 
-        // Math
         sin(x){return Math.sin(x);}, cos(x){return Math.cos(x);},
         sqrt(x){return Math.sqrt(x);}, abs(x){return Math.abs(x);},
         min(a,b){return Math.min(a,b);}, max(a,b){return Math.max(a,b);},
@@ -168,18 +261,28 @@ const Obsid = {
         to_float(x){return N(x);},
         to_int(x){return B(Math.trunc(x));},
 
-        // Canvas
         get_aspect(){ return canvas.width/canvas.height; },
 
         // Mesh
-        create_mesh(id){
-          meshes.set(N(id), { pos:[0,0,0], visible:true, vbo:null, ibo:null, count:0 });
-        },
+        create_mesh(id){ meshes.set(N(id), newMesh()); },
         upload_mesh(id, vert_ptr, vert_count, idx_ptr, idx_count){
           uploadMesh(N(id), N(vert_ptr), N(vert_count), N(idx_ptr), N(idx_count));
         },
         set_mesh_position(id, x, y, z){
           const m = meshes.get(N(id)); if (m) m.pos = [x,y,z];
+        },
+        set_mesh_rotation(id, x, y, z){
+          const m = meshes.get(N(id)); if (m) m.rot = [x,y,z];
+        },
+        set_mesh_scale(id, x, y, z){
+          const m = meshes.get(N(id)); if (m) m.scl = [x,y,z];
+        },
+        set_mesh_material(id, shininess, sr, sg, sb){
+          const m = meshes.get(N(id));
+          if (m) { m.shininess = shininess; m.specular = [sr,sg,sb]; }
+        },
+        set_mesh_alpha(id, alpha){
+          const m = meshes.get(N(id)); if (m) m.alpha = alpha;
         },
         set_mesh_visible(id, v){
           const m = meshes.get(N(id)); if (m) m.visible = N(v) !== 0;
@@ -187,8 +290,8 @@ const Obsid = {
         delete_mesh(id){
           const m = meshes.get(N(id));
           if (m) {
-            if (m.vbo) gl.deleteBuffer(m.vbo);
-            if (m.ibo) gl.deleteBuffer(m.ibo);
+            if (m.vbo) ObsidGL.deleteBuffer(gl, m.vbo);
+            if (m.ibo) ObsidGL.deleteBuffer(gl, m.ibo);
             meshes.delete(N(id));
           }
         },
@@ -200,8 +303,17 @@ const Obsid = {
         set_dir_light(r,g,b,dx,dy,dz){ sun={color:[r,g,b],dir:[dx,dy,dz]}; },
         set_ambient(r,g,b){ amb=[r,g,b]; },
         set_fog(r,g,b,near,far){ fog={color:[r,g,b],near,far}; },
+        set_point_light(idx, x, y, z, r, g, b, range){
+          const i = N(idx);
+          if (i >= 0 && i < MAX_POINTS) {
+            points[i] = { pos:[x,y,z], color:[r,g,b], range, active:true };
+          }
+        },
+        clear_point_light(idx){
+          const i = N(idx);
+          if (i >= 0 && i < MAX_POINTS) points[i].active = false;
+        },
 
-        // Render
         render(){ renderMeshes(); },
       },
 
@@ -237,7 +349,6 @@ const Obsid = {
 
     const {instance} = await WebAssembly.instantiate(await(await fetch(wasmUrl)).arrayBuffer(),imports);
     memory = instance.exports.memory;
-    initShader();
 
     if (instance.exports._start) {
       try { instance.exports._start(); }
