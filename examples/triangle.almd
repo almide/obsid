@@ -1,59 +1,76 @@
-// obsid example — hello triangle
-// The simplest possible mesh: 3 vertices with per-vertex colors.
+// obsid example — hello triangle (double-sided)
+// A flat triangle with both a front face (+Z normal) and a back face (-Z normal)
+// so it stays visible as the camera orbits all the way around.
 
 import self as obsid
 
 effect fn main() -> Unit = {
-  let verts = bytes.new(3 * 36)
-  let idx = bytes.new(3 * 2)
+  let verts = bytes.new(6 * 36)
+  let idx = bytes.new(6 * 2)
 
+  // ── Front face (normal = +Z) ──
   // v0 — top, red
   bytes.set_f32_le(verts, 0, 0.0)
   bytes.set_f32_le(verts, 4, 1.2)
   bytes.set_f32_le(verts, 8, 0.0)
-  bytes.set_f32_le(verts, 12, 0.0)
-  bytes.set_f32_le(verts, 16, 0.0)
-  bytes.set_f32_le(verts, 20, 1.0)
-  bytes.set_f32_le(verts, 24, 1.0)
-  bytes.set_f32_le(verts, 28, 0.25)
-  bytes.set_f32_le(verts, 32, 0.3)
+  bytes.set_f32_le(verts, 12, 0.0); bytes.set_f32_le(verts, 16, 0.0); bytes.set_f32_le(verts, 20, 1.0)
+  bytes.set_f32_le(verts, 24, 1.0); bytes.set_f32_le(verts, 28, 0.25); bytes.set_f32_le(verts, 32, 0.3)
 
   // v1 — bottom-left, green
   bytes.set_f32_le(verts, 36, 0.0 - 1.1)
   bytes.set_f32_le(verts, 40, 0.0 - 0.8)
   bytes.set_f32_le(verts, 44, 0.0)
-  bytes.set_f32_le(verts, 48, 0.0)
-  bytes.set_f32_le(verts, 52, 0.0)
-  bytes.set_f32_le(verts, 56, 1.0)
-  bytes.set_f32_le(verts, 60, 0.25)
-  bytes.set_f32_le(verts, 64, 1.0)
-  bytes.set_f32_le(verts, 68, 0.4)
+  bytes.set_f32_le(verts, 48, 0.0); bytes.set_f32_le(verts, 52, 0.0); bytes.set_f32_le(verts, 56, 1.0)
+  bytes.set_f32_le(verts, 60, 0.25); bytes.set_f32_le(verts, 64, 1.0); bytes.set_f32_le(verts, 68, 0.4)
 
   // v2 — bottom-right, blue
   bytes.set_f32_le(verts, 72, 1.1)
   bytes.set_f32_le(verts, 76, 0.0 - 0.8)
   bytes.set_f32_le(verts, 80, 0.0)
-  bytes.set_f32_le(verts, 84, 0.0)
-  bytes.set_f32_le(verts, 88, 0.0)
-  bytes.set_f32_le(verts, 92, 1.0)
-  bytes.set_f32_le(verts, 96, 0.25)
-  bytes.set_f32_le(verts, 100, 0.4)
-  bytes.set_f32_le(verts, 104, 1.0)
+  bytes.set_f32_le(verts, 84, 0.0); bytes.set_f32_le(verts, 88, 0.0); bytes.set_f32_le(verts, 92, 1.0)
+  bytes.set_f32_le(verts, 96, 0.25); bytes.set_f32_le(verts, 100, 0.4); bytes.set_f32_le(verts, 104, 1.0)
 
+  // ── Back face (same positions, normal = -Z) ──
+  // v3 — top, red
+  bytes.set_f32_le(verts, 108, 0.0)
+  bytes.set_f32_le(verts, 112, 1.2)
+  bytes.set_f32_le(verts, 116, 0.0)
+  bytes.set_f32_le(verts, 120, 0.0); bytes.set_f32_le(verts, 124, 0.0); bytes.set_f32_le(verts, 128, 0.0 - 1.0)
+  bytes.set_f32_le(verts, 132, 1.0); bytes.set_f32_le(verts, 136, 0.25); bytes.set_f32_le(verts, 140, 0.3)
+
+  // v4 — bottom-left, green
+  bytes.set_f32_le(verts, 144, 0.0 - 1.1)
+  bytes.set_f32_le(verts, 148, 0.0 - 0.8)
+  bytes.set_f32_le(verts, 152, 0.0)
+  bytes.set_f32_le(verts, 156, 0.0); bytes.set_f32_le(verts, 160, 0.0); bytes.set_f32_le(verts, 164, 0.0 - 1.0)
+  bytes.set_f32_le(verts, 168, 0.25); bytes.set_f32_le(verts, 172, 1.0); bytes.set_f32_le(verts, 176, 0.4)
+
+  // v5 — bottom-right, blue
+  bytes.set_f32_le(verts, 180, 1.1)
+  bytes.set_f32_le(verts, 184, 0.0 - 0.8)
+  bytes.set_f32_le(verts, 188, 0.0)
+  bytes.set_f32_le(verts, 192, 0.0); bytes.set_f32_le(verts, 196, 0.0); bytes.set_f32_le(verts, 200, 0.0 - 1.0)
+  bytes.set_f32_le(verts, 204, 0.25); bytes.set_f32_le(verts, 208, 0.4); bytes.set_f32_le(verts, 212, 1.0)
+
+  // Front: CCW from +Z
   bytes.set_u16_le(idx, 0, 0)
   bytes.set_u16_le(idx, 2, 1)
   bytes.set_u16_le(idx, 4, 2)
+  // Back: CCW from -Z (reverse winding)
+  bytes.set_u16_le(idx, 6, 3)
+  bytes.set_u16_le(idx, 8, 5)
+  bytes.set_u16_le(idx, 10, 4)
 
   obsid.create_mesh(0)
-  obsid.upload_mesh(0, bytes.data_ptr(verts), 3, bytes.data_ptr(idx), 3)
+  obsid.upload_mesh(0, bytes.data_ptr(verts), 6, bytes.data_ptr(idx), 6)
 }
 
 pub fn render_frame(time: Float) -> Unit = {
   let cx = obsid.sin(time * 0.4) * 3.5
   let cz = obsid.cos(time * 0.4) * 3.5
   obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, cx, 0.3, cz, 0.0, 0.0, 0.0)
-  obsid.set_dir_light(1.0, 1.0, 1.0, 0.0, 0.2, 1.0)
-  obsid.set_ambient(0.35, 0.35, 0.4)
+  obsid.set_dir_light(1.0, 1.0, 1.0, 0.3, 0.5, 0.8)
+  obsid.set_ambient(0.45, 0.45, 0.5)
   obsid.set_fog(0.1, 0.1, 0.15, 30.0, 80.0)
   obsid.render()
 }
