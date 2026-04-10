@@ -57,6 +57,18 @@ fn set_camera(fov: Float, aspect: Float, near: Float, far: Float, px: Float, py:
 @extern(wasm, "obsid", "get_aspect")
 fn get_aspect() -> Float
 
+@extern(wasm, "obsid", "enable_orbit_controls")
+fn enable_orbit_controls(target_x: Float, target_y: Float, target_z: Float, distance: Float) -> Unit
+
+@extern(wasm, "obsid", "disable_orbit_controls")
+fn disable_orbit_controls() -> Unit
+
+@extern(wasm, "obsid", "set_orbit_angles")
+fn set_orbit_angles(yaw: Float, pitch: Float) -> Unit
+
+@extern(wasm, "obsid", "set_orbit_distance_range")
+fn set_orbit_distance_range(min_distance: Float, max_distance: Float) -> Unit
+
 // ── Lighting ────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_dir_light")

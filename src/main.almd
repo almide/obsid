@@ -82,17 +82,28 @@ effect fn main() -> Unit = {
   obsid.create_mesh(0)
   obsid.upload_mesh(0, bytes.data_ptr(verts), vc, bytes.data_ptr(idx), ic)
   obsid.set_mesh_position(0, 0.0, 0.0, 0.0)
+  obsid.set_mesh_material(0, 16.0, 0.3, 0.3, 0.4)
+
+  obsid.enable_orbit_controls(0.0, 0.0, 0.0, 32.0)
+  obsid.set_orbit_distance_range(10.0, 80.0)
 }
 
 pub fn render_frame(time: Float) -> Unit = {
-  let aspect = obsid.get_aspect()
-  let r = 32.0
-  let cam_x = obsid.sin(time * 0.18) * r
-  let cam_z = obsid.cos(time * 0.18) * r
-  let cam_y = 16.0 + obsid.sin(time * 0.1) * 4.0
-  obsid.set_camera(60.0, aspect, 0.1, 200.0, cam_x, cam_y, cam_z, 0.0, 0.0, 0.0)
-  obsid.set_dir_light(1.0, 0.95, 0.85, 0.5, 1.0, 0.4)
-  obsid.set_ambient(0.22, 0.25, 0.32)
-  obsid.set_fog(0.55, 0.65, 0.85, 30.0, 80.0)
+  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  obsid.set_dir_light(0.7, 0.7, 0.75, 0.5, 1.0, 0.4)
+  obsid.set_ambient(0.12, 0.14, 0.2)
+  obsid.set_fog(0.04, 0.05, 0.1, 30.0, 80.0)
+
+  // Three colored lanterns drifting over the terrain
+  obsid.set_point_light(0,
+    obsid.sin(time * 0.35) * 12.0, 5.0, obsid.cos(time * 0.35) * 12.0,
+    1.2, 0.5, 0.2, 18.0)
+  obsid.set_point_light(1,
+    obsid.sin(time * 0.5 + 2.1) * 10.0, 6.0, obsid.cos(time * 0.5 + 2.1) * 10.0,
+    0.3, 1.0, 0.4, 18.0)
+  obsid.set_point_light(2,
+    obsid.sin(time * 0.25 + 4.2) * 14.0, 4.5, obsid.cos(time * 0.25 + 4.2) * 14.0,
+    0.4, 0.5, 1.2, 18.0)
+
   obsid.render()
 }

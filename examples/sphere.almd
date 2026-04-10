@@ -61,29 +61,31 @@ effect fn main() -> Unit = {
   obsid.upload_mesh(0, bytes.data_ptr(verts), vc, bytes.data_ptr(idx), ic)
   // Glossy Phong: high shininess, bright specular
   obsid.set_mesh_material(0, 64.0, 0.9, 0.9, 0.95)
+
+  // Interactive camera (drag to rotate, wheel to zoom)
+  obsid.enable_orbit_controls(0.0, 0.0, 0.0, 7.0)
+  obsid.set_orbit_distance_range(3.0, 20.0)
 }
 
 pub fn render_frame(time: Float) -> Unit = {
-  let cx = obsid.sin(time * 0.3) * 6.0
-  let cz = obsid.cos(time * 0.3) * 6.0
-  let cy = 2.0 + obsid.sin(time * 0.15) * 1.5
-  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, cx, cy, cz, 0.0, 0.0, 0.0)
-  // Dim sun so point lights dominate
-  obsid.set_dir_light(0.2, 0.2, 0.25, 0.6, 0.8, 0.4)
-  obsid.set_ambient(0.05, 0.05, 0.08)
-  obsid.set_fog(0.08, 0.1, 0.18, 15.0, 50.0)
+  // Update projection params; orbit controls override pos/target
+  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  // Dim base lighting so point lights pop
+  obsid.set_dir_light(0.25, 0.25, 0.3, 0.6, 0.8, 0.4)
+  obsid.set_ambient(0.08, 0.08, 0.1)
+  obsid.set_fog(0.04, 0.05, 0.1, 15.0, 50.0)
 
-  // DEBUG: very bright, close orbit
-  let r1 = 3.0
+  // Two bright orbiting lights
+  let r1 = 3.5
   obsid.set_point_light(0,
-    obsid.cos(time * 1.2) * r1, 0.5, obsid.sin(time * 1.2) * r1,
-    3.0, 0.0, 0.0, 6.0)
+    obsid.cos(time * 1.0) * r1, 0.8, obsid.sin(time * 1.0) * r1,
+    2.5, 0.2, 0.5, 8.0)
   obsid.set_point_light(1,
-    obsid.cos(time * 0.8 + 2.0) * r1, 0.5, obsid.sin(time * 0.8 + 2.0) * r1,
-    0.0, 0.0, 3.0, 6.0)
+    obsid.cos(time * 0.7 + 3.14) * r1, 0.0 - 0.8, obsid.sin(time * 0.7 + 3.14) * r1,
+    0.2, 0.5, 2.5, 8.0)
 
-  // Slowly rotate the sphere itself
-  obsid.set_mesh_rotation(0, 0.0, time * 0.3, 0.0)
+  // Slow sphere rotation
+  obsid.set_mesh_rotation(0, 0.0, time * 0.15, 0.0)
 
   obsid.render()
 }

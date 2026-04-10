@@ -68,15 +68,26 @@ effect fn main() -> Unit = {
 
   obsid.create_mesh(0)
   obsid.upload_mesh(0, bytes.data_ptr(verts), vc, bytes.data_ptr(idx), ic)
+  // Glass-like material: glossy + semi-transparent
+  obsid.set_mesh_material(0, 96.0, 1.0, 1.0, 1.0)
+  obsid.set_mesh_alpha(0, 0.55)
+
+  obsid.enable_orbit_controls(0.0, 0.0, 0.0, 8.0)
+  obsid.set_orbit_distance_range(3.5, 25.0)
 }
 
 pub fn render_frame(time: Float) -> Unit = {
-  let cx = obsid.sin(time * 0.25) * 7.0
-  let cz = obsid.cos(time * 0.25) * 7.0
-  let cy = 3.0 + obsid.sin(time * 0.15) * 2.0
-  obsid.set_camera(55.0, obsid.get_aspect(), 0.1, 100.0, cx, cy, cz, 0.0, 0.0, 0.0)
+  obsid.set_camera(55.0, obsid.get_aspect(), 0.1, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
   obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 0.9, 0.3)
-  obsid.set_ambient(0.15, 0.16, 0.22)
+  obsid.set_ambient(0.25, 0.25, 0.32)
   obsid.set_fog(0.06, 0.08, 0.14, 20.0, 60.0)
+
+  // One orbiting accent light
+  obsid.set_point_light(0,
+    obsid.cos(time * 0.9) * 5.0, 1.5, obsid.sin(time * 0.9) * 5.0,
+    1.5, 0.8, 2.0, 10.0)
+
+  // Torus spins around itself
+  obsid.set_mesh_rotation(0, time * 0.3, time * 0.2, 0.0)
   obsid.render()
 }

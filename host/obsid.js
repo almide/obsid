@@ -180,6 +180,61 @@ const Obsid = {
       pos: [0,0,0], color: [0,0,0], range: 0, active: false,
     }));
 
+    // ── Orbit Controls ────────────────────────────────
+    // When active, JS drives the camera from yaw/pitch/distance state,
+    // overriding any set_camera calls from WASM (except fov/near/far).
+    const orbit = {
+      enabled: false,
+      target: [0,0,0],
+      yaw: 0,
+      pitch: 0.4,
+      distance: 10,
+      minDistance: 1,
+      maxDistance: 200,
+      minPitch: -1.5,
+      maxPitch: 1.5,
+    };
+
+    function applyOrbit() {
+      const cp = Math.cos(orbit.pitch), sp = Math.sin(orbit.pitch);
+      const cy = Math.cos(orbit.yaw), sy = Math.sin(orbit.yaw);
+      cam.pos = [
+        orbit.target[0] + orbit.distance * cp * sy,
+        orbit.target[1] + orbit.distance * sp,
+        orbit.target[2] + orbit.distance * cp * cy,
+      ];
+      cam.target = [...orbit.target];
+    }
+
+    // Pointer drag for yaw/pitch, wheel for zoom
+    let dragging = false, lastX = 0, lastY = 0;
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!orbit.enabled) return;
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!dragging || !orbit.enabled) return;
+      const dx = e.clientX - lastX, dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      orbit.yaw -= dx * 0.01;
+      orbit.pitch -= dy * 0.01;
+      if (orbit.pitch < orbit.minPitch) orbit.pitch = orbit.minPitch;
+      if (orbit.pitch > orbit.maxPitch) orbit.pitch = orbit.maxPitch;
+    });
+    canvas.addEventListener("pointerup", (e) => {
+      dragging = false;
+      try { canvas.releasePointerCapture(e.pointerId); } catch {}
+    });
+    canvas.addEventListener("wheel", (e) => {
+      if (!orbit.enabled) return;
+      e.preventDefault();
+      const factor = Math.exp(e.deltaY * 0.001);
+      orbit.distance *= factor;
+      if (orbit.distance < orbit.minDistance) orbit.distance = orbit.minDistance;
+      if (orbit.distance > orbit.maxDistance) orbit.distance = orbit.maxDistance;
+    }, { passive: false });
+
     function drawMesh(m) {
       const model = mat4ComposeTRS(m.pos, m.rot, m.scl);
       ObsidGL.uniformMatrix4fv(gl, uni.u_model, model);
@@ -193,6 +248,7 @@ const Obsid = {
     }
 
     function renderMeshes() {
+      if (orbit.enabled) applyOrbit();
       ObsidGL.clear(gl, fog.color[0], fog.color[1], fog.color[2]);
       const vp = mat4Mul(
         mat4Perspective(cam.fov, cam.aspect, cam.near, cam.far),
@@ -299,6 +355,22 @@ const Obsid = {
         // Camera & lighting
         set_camera(fov,aspect,near,far,px,py,pz,tx,ty,tz){
           cam={fov,aspect,near,far,pos:[px,py,pz],target:[tx,ty,tz]};
+        },
+        enable_orbit_controls(tx, ty, tz, distance){
+          orbit.enabled = true;
+          orbit.target = [tx, ty, tz];
+          orbit.distance = distance;
+        },
+        disable_orbit_controls(){
+          orbit.enabled = false;
+        },
+        set_orbit_angles(yaw, pitch){
+          orbit.yaw = yaw;
+          orbit.pitch = Math.max(orbit.minPitch, Math.min(orbit.maxPitch, pitch));
+        },
+        set_orbit_distance_range(min_d, max_d){
+          orbit.minDistance = min_d;
+          orbit.maxDistance = max_d;
         },
         set_dir_light(r,g,b,dx,dy,dz){ sun={color:[r,g,b],dir:[dx,dy,dz]}; },
         set_ambient(r,g,b){ amb=[r,g,b]; },

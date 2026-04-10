@@ -63,12 +63,13 @@ effect fn main() -> Unit = {
 
   obsid.create_mesh(0)
   obsid.upload_mesh(0, bytes.data_ptr(verts), 6, bytes.data_ptr(idx), 6)
+
+  obsid.enable_orbit_controls(0.0, 0.0, 0.0, 4.0)
+  obsid.set_orbit_distance_range(2.0, 15.0)
 }
 
 pub fn render_frame(time: Float) -> Unit = {
-  let cx = obsid.sin(time * 0.4) * 3.5
-  let cz = obsid.cos(time * 0.4) * 3.5
-  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, cx, 0.3, cz, 0.0, 0.0, 0.0)
+  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
   obsid.set_dir_light(1.0, 1.0, 1.0, 0.3, 0.5, 0.8)
   obsid.set_ambient(0.45, 0.45, 0.5)
   obsid.set_fog(0.1, 0.1, 0.15, 30.0, 80.0)
