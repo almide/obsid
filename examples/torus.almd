@@ -6,8 +6,8 @@ import self as obsid
 effect fn main() -> Unit = {
   let major = 2.0          // radius from torus center to tube center
   let minor = 0.6          // tube radius
-  let major_segs = 48      // segments around the main ring
-  let minor_segs = 16      // segments around the tube
+  let major_segs = 96      // segments around the main ring
+  let minor_segs = 32      // segments around the tube
 
   let vc = (major_segs + 1) * (minor_segs + 1)
   let ic = major_segs * minor_segs * 6
@@ -58,11 +58,11 @@ effect fn main() -> Unit = {
       let a = j * (minor_segs + 1) + i
       let b = a + minor_segs + 1
       bytes.set_u16_le(idx, off + 0, a)
-      bytes.set_u16_le(idx, off + 2, b)
-      bytes.set_u16_le(idx, off + 4, a + 1)
-      bytes.set_u16_le(idx, off + 6, b)
+      bytes.set_u16_le(idx, off + 2, a + 1)
+      bytes.set_u16_le(idx, off + 4, b)
+      bytes.set_u16_le(idx, off + 6, a + 1)
       bytes.set_u16_le(idx, off + 8, b + 1)
-      bytes.set_u16_le(idx, off + 10, a + 1)
+      bytes.set_u16_le(idx, off + 10, b)
     }
   }
 

@@ -4,8 +4,8 @@
 import self as obsid
 
 effect fn main() -> Unit = {
-  let segs = 32
-  let rings = 16
+  let segs = 64
+  let rings = 32
   let radius = 2.0
 
   let vc = (rings + 1) * (segs + 1)
@@ -49,11 +49,11 @@ effect fn main() -> Unit = {
       let a = ring * (segs + 1) + seg
       let b = a + segs + 1
       bytes.set_u16_le(idx, off + 0, a)
-      bytes.set_u16_le(idx, off + 2, b)
-      bytes.set_u16_le(idx, off + 4, a + 1)
-      bytes.set_u16_le(idx, off + 6, b)
+      bytes.set_u16_le(idx, off + 2, a + 1)
+      bytes.set_u16_le(idx, off + 4, b)
+      bytes.set_u16_le(idx, off + 6, a + 1)
       bytes.set_u16_le(idx, off + 8, b + 1)
-      bytes.set_u16_le(idx, off + 10, a + 1)
+      bytes.set_u16_le(idx, off + 10, b)
     }
   }
 
