@@ -21,10 +21,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Almide build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/almide
+          key: almide-${{ runner.os }}-develop-f8c03dbb
+
       - name: Install Almide
         run: |
-          curl -fsSL https://raw.githubusercontent.com/almide/almide/main/tools/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          if [ ! -f ~/.cargo/bin/almide ]; then
+            cargo install --git https://github.com/almide/almide --branch develop almide
+          fi
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Verify Almide version
         run: almide --version
