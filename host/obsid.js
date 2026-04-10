@@ -62,16 +62,19 @@ const Obsid = {
     const VS = `
       precision mediump float;
       attribute vec3 a_pos, a_norm, a_color;
+      attribute vec2 a_uv;
       uniform mat4 u_vp;
       uniform mat4 u_model;
       uniform vec3 u_eye;
       varying vec3 v_norm, v_color, v_wpos;
+      varying vec2 v_uv;
       varying float v_dist;
       void main() {
         vec4 world = u_model * vec4(a_pos, 1.0);
         v_wpos = world.xyz;
         v_norm = mat3(u_model) * a_norm;
         v_color = a_color;
+        v_uv = a_uv;
         v_dist = length(v_wpos - u_eye);
         gl_Position = u_vp * world;
       }
@@ -79,6 +82,7 @@ const Obsid = {
     const FS = `
       precision mediump float;
       varying vec3 v_norm, v_color, v_wpos;
+      varying vec2 v_uv;
       varying float v_dist;
       uniform vec3 u_eye;
       uniform vec3 u_sun_color, u_sun_dir, u_ambient, u_fog_color;
@@ -90,9 +94,17 @@ const Obsid = {
       uniform vec3 u_point_pos[${MAX_POINTS}];
       uniform vec3 u_point_color[${MAX_POINTS}];
       uniform float u_point_range[${MAX_POINTS}];
+      uniform sampler2D u_tex;
+      uniform int u_has_tex;
       void main() {
         vec3 n = normalize(v_norm);
         vec3 viewDir = normalize(u_eye - v_wpos);
+
+        // Base color: vertex color, optionally modulated by texture
+        vec3 baseColor = v_color;
+        if (u_has_tex == 1) {
+          baseColor *= texture2D(u_tex, v_uv).rgb;
+        }
 
         // Directional (sun) — Lambert + Blinn-Phong
         vec3 sunDir = normalize(u_sun_dir);
@@ -117,7 +129,7 @@ const Obsid = {
           specular += u_point_color[i] * spec * atten;
         }
 
-        vec3 color = v_color * lighting + specular * u_specular;
+        vec3 color = baseColor * lighting + specular * u_specular;
 
         // Fog
         float fog = clamp((u_fog_range.y - v_dist) / (u_fog_range.y - u_fog_range.x), 0.0, 1.0);
@@ -129,14 +141,17 @@ const Obsid = {
 
     const program = ObsidGL.createProgram(gl, VS, FS);
     ObsidGL.useProgram(gl, program);
-    const attr = ObsidGL.getAttribLocs(gl, program, ["a_pos", "a_norm", "a_color"]);
+    const attr = ObsidGL.getAttribLocs(gl, program, ["a_pos", "a_norm", "a_color", "a_uv"]);
     const uni = ObsidGL.getUniformLocs(gl, program, [
       "u_vp", "u_model", "u_eye",
       "u_sun_color", "u_sun_dir", "u_ambient",
       "u_fog_color", "u_fog_range",
       "u_shininess", "u_specular", "u_alpha",
       "u_num_points",
+      "u_tex", "u_has_tex",
     ]);
+    // Default sampler to texture unit 0
+    ObsidGL.uniform1i(gl, uni.u_tex, 0);
     // Array uniforms need per-element locations
     const uniPointPos = [], uniPointColor = [], uniPointRange = [];
     for (let i = 0; i < MAX_POINTS; i++) {
@@ -149,7 +164,12 @@ const Obsid = {
     ObsidGL.enableCullFace(gl);
 
     // ── Mesh Storage ──────────────────────────────────
+    // Vertex format: pos(3) + norm(3) + color(3) + uv(2) = 44 bytes = 11 floats
+    const VERT_STRIDE = 44;
+    const VERT_FLOATS = 11;
+
     const meshes = new Map();
+    const textures = new Map();
 
     function newMesh() {
       return {
@@ -157,18 +177,27 @@ const Obsid = {
         visible: true,
         vbo: null, ibo: null, count: 0,
         shininess: 32, specular: [0,0,0], alpha: 1,
+        textureId: -1,
       };
     }
 
     function uploadMesh(id, vertPtr, vertCount, idxPtr, idxCount) {
       let m = meshes.get(id);
       if (!m) { m = newMesh(); meshes.set(id, m); }
-      const verts = ObsidGL.viewF32(memory, vertPtr, vertCount * 9);
+      const verts = ObsidGL.viewF32(memory, vertPtr, vertCount * VERT_FLOATS);
       const indices = ObsidGL.viewU16(memory, idxPtr, idxCount);
       if (!m.vbo) { m.vbo = ObsidGL.createBuffer(gl); m.ibo = ObsidGL.createBuffer(gl); }
       ObsidGL.uploadVertexBuffer(gl, m.vbo, verts);
       ObsidGL.uploadIndexBuffer(gl, m.ibo, indices);
       m.count = idxCount;
+    }
+
+    function uploadTexture(id, dataPtr, width, height) {
+      let tex = textures.get(id);
+      if (tex) ObsidGL.deleteTexture(gl, tex);
+      const pixels = ObsidGL.viewU8(memory, dataPtr, width * height * 4);
+      tex = ObsidGL.createTexture(gl, pixels, width, height);
+      textures.set(id, tex);
     }
 
     // ── Render State ──────────────────────────────────
@@ -180,60 +209,66 @@ const Obsid = {
       pos: [0,0,0], color: [0,0,0], range: 0, active: false,
     }));
 
-    // ── Orbit Controls ────────────────────────────────
-    // When active, JS drives the camera from yaw/pitch/distance state,
-    // overriding any set_camera calls from WASM (except fov/near/far).
-    const orbit = {
-      enabled: false,
-      target: [0,0,0],
-      yaw: 0,
-      pitch: 0.4,
-      distance: 10,
-      minDistance: 1,
-      maxDistance: 200,
-      minPitch: -1.5,
-      maxPitch: 1.5,
-    };
-
-    function applyOrbit() {
-      const cp = Math.cos(orbit.pitch), sp = Math.sin(orbit.pitch);
-      const cy = Math.cos(orbit.yaw), sy = Math.sin(orbit.yaw);
-      cam.pos = [
-        orbit.target[0] + orbit.distance * cp * sy,
-        orbit.target[1] + orbit.distance * sp,
-        orbit.target[2] + orbit.distance * cp * cy,
-      ];
-      cam.target = [...orbit.target];
+    // ── Event forwarders ──────────────────────────────
+    // JS only translates browser events into raw primitive calls.
+    // All state and logic lives in WASM. If the Almide module doesn't
+    // export the corresponding handler, the event is silently dropped.
+    let instanceRef = null;
+    function call(name, ...args) {
+      const fn = instanceRef && instanceRef.exports[name];
+      if (fn) { try { fn(...args); } catch (e) { console.warn(name + ":", e.message); } }
     }
 
-    // Pointer drag for yaw/pitch, wheel for zoom
-    let dragging = false, lastX = 0, lastY = 0;
+    // Pointer
     canvas.addEventListener("pointerdown", (e) => {
-      if (!orbit.enabled) return;
-      dragging = true; lastX = e.clientX; lastY = e.clientY;
       canvas.setPointerCapture(e.pointerId);
+      call("on_pointer_down", e.offsetX, e.offsetY, BigInt(e.button));
     });
     canvas.addEventListener("pointermove", (e) => {
-      if (!dragging || !orbit.enabled) return;
-      const dx = e.clientX - lastX, dy = e.clientY - lastY;
-      lastX = e.clientX; lastY = e.clientY;
-      orbit.yaw -= dx * 0.01;
-      orbit.pitch -= dy * 0.01;
-      if (orbit.pitch < orbit.minPitch) orbit.pitch = orbit.minPitch;
-      if (orbit.pitch > orbit.maxPitch) orbit.pitch = orbit.maxPitch;
+      call("on_pointer_move", e.offsetX, e.offsetY);
     });
     canvas.addEventListener("pointerup", (e) => {
-      dragging = false;
       try { canvas.releasePointerCapture(e.pointerId); } catch {}
+      call("on_pointer_up", e.offsetX, e.offsetY, BigInt(e.button));
+    });
+    canvas.addEventListener("pointerleave", () => {
+      call("on_pointer_leave");
     });
     canvas.addEventListener("wheel", (e) => {
-      if (!orbit.enabled) return;
       e.preventDefault();
-      const factor = Math.exp(e.deltaY * 0.001);
-      orbit.distance *= factor;
-      if (orbit.distance < orbit.minDistance) orbit.distance = orbit.minDistance;
-      if (orbit.distance > orbit.maxDistance) orbit.distance = orbit.maxDistance;
+      call("on_wheel", e.deltaY);
     }, { passive: false });
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    // Keyboard (on window so canvas doesn't need focus)
+    window.addEventListener("keydown", (e) => {
+      call("on_key_down",
+        BigInt(e.keyCode),
+        BigInt(e.shiftKey ? 1 : 0),
+        BigInt(e.ctrlKey ? 1 : 0),
+        BigInt(e.altKey ? 1 : 0));
+    });
+    window.addEventListener("keyup", (e) => {
+      call("on_key_up",
+        BigInt(e.keyCode),
+        BigInt(e.shiftKey ? 1 : 0),
+        BigInt(e.ctrlKey ? 1 : 0),
+        BigInt(e.altKey ? 1 : 0));
+    });
+
+    // Window lifecycle
+    window.addEventListener("resize", () => {
+      const dpr = Math.min(devicePixelRatio, 1.5);
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      call("on_resize", BigInt(canvas.width), BigInt(canvas.height));
+    });
+    window.addEventListener("blur", () => call("on_blur"));
+    window.addEventListener("focus", () => call("on_focus"));
+    document.addEventListener("visibilitychange", () => {
+      call("on_visibility_change", BigInt(document.visibilityState === "visible" ? 1 : 0));
+    });
 
     function drawMesh(m) {
       const model = mat4ComposeTRS(m.pos, m.rot, m.scl);
@@ -241,14 +276,22 @@ const Obsid = {
       ObsidGL.uniform1f(gl, uni.u_shininess, m.shininess);
       ObsidGL.uniform3fv(gl, uni.u_specular, m.specular);
       ObsidGL.uniform1f(gl, uni.u_alpha, m.alpha);
-      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_pos, 3, 36, 0);
-      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_norm, 3, 36, 12);
-      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_color, 3, 36, 24);
+      // Texture binding
+      const tex = m.textureId >= 0 ? textures.get(m.textureId) : null;
+      if (tex) {
+        ObsidGL.bindTextureUnit(gl, 0, tex);
+        ObsidGL.uniform1i(gl, uni.u_has_tex, 1);
+      } else {
+        ObsidGL.uniform1i(gl, uni.u_has_tex, 0);
+      }
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_pos, 3, VERT_STRIDE, 0);
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_norm, 3, VERT_STRIDE, 12);
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_color, 3, VERT_STRIDE, 24);
+      ObsidGL.bindVertexAttrib(gl, m.vbo, attr.a_uv, 2, VERT_STRIDE, 36);
       ObsidGL.drawElementsU16(gl, m.ibo, m.count);
     }
 
     function renderMeshes() {
-      if (orbit.enabled) applyOrbit();
       ObsidGL.clear(gl, fog.color[0], fog.color[1], fog.color[2]);
       const vp = mat4Mul(
         mat4Perspective(cam.fov, cam.aspect, cam.near, cam.far),
@@ -352,25 +395,24 @@ const Obsid = {
           }
         },
 
+        // Texture
+        upload_texture(id, data_ptr, width, height){
+          uploadTexture(N(id), N(data_ptr), N(width), N(height));
+        },
+        set_mesh_texture(mesh_id, tex_id){
+          const m = meshes.get(N(mesh_id)); if (m) m.textureId = N(tex_id);
+        },
+        clear_mesh_texture(mesh_id){
+          const m = meshes.get(N(mesh_id)); if (m) m.textureId = -1;
+        },
+        delete_texture(id){
+          const tex = textures.get(N(id));
+          if (tex) { ObsidGL.deleteTexture(gl, tex); textures.delete(N(id)); }
+        },
+
         // Camera & lighting
         set_camera(fov,aspect,near,far,px,py,pz,tx,ty,tz){
           cam={fov,aspect,near,far,pos:[px,py,pz],target:[tx,ty,tz]};
-        },
-        enable_orbit_controls(tx, ty, tz, distance){
-          orbit.enabled = true;
-          orbit.target = [tx, ty, tz];
-          orbit.distance = distance;
-        },
-        disable_orbit_controls(){
-          orbit.enabled = false;
-        },
-        set_orbit_angles(yaw, pitch){
-          orbit.yaw = yaw;
-          orbit.pitch = Math.max(orbit.minPitch, Math.min(orbit.maxPitch, pitch));
-        },
-        set_orbit_distance_range(min_d, max_d){
-          orbit.minDistance = min_d;
-          orbit.maxDistance = max_d;
         },
         set_dir_light(r,g,b,dx,dy,dz){ sun={color:[r,g,b],dir:[dx,dy,dz]}; },
         set_ambient(r,g,b){ amb=[r,g,b]; },
@@ -421,6 +463,7 @@ const Obsid = {
 
     const {instance} = await WebAssembly.instantiate(await(await fetch(wasmUrl)).arrayBuffer(),imports);
     memory = instance.exports.memory;
+    instanceRef = instance;
 
     if (instance.exports._start) {
       try { instance.exports._start(); }

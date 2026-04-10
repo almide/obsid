@@ -1,0 +1,94 @@
+// obsid example — procedural checker texture
+//
+// Generates a 64x64 RGBA checkerboard texture entirely in WASM linear memory,
+// then hands the pointer to obsid for GPU upload. The texture is applied to
+// a flat quad. This demonstrates the same zero-copy pattern used for vertex
+// data, but for pixel data.
+
+import self as obsid
+
+fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_down(x, y) }
+fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_up() }
+fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
+fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
+
+effect fn main() -> Unit = {
+  // ── Procedural texture: 64x64 RGBA checker ──
+  let tex_size = 64
+  let tex_bytes = tex_size * tex_size * 4
+  let tex_data = bytes.new(tex_bytes)
+
+  for y in 0..tex_size {
+    for x in 0..tex_size {
+      let i = (y * tex_size + x) * 4
+      // 8x8 cells, alternating between two colors
+      let cx = x / 8
+      let cy = y / 8
+      let checker = (cx + cy) % 2
+      let r = if checker == 0 then 230 else 40
+      let g = if checker == 0 then 220 else 40
+      let b = if checker == 0 then 200 else 60
+      bytes.set(tex_data, i + 0, r)
+      bytes.set(tex_data, i + 1, g)
+      bytes.set(tex_data, i + 2, b)
+      bytes.set(tex_data, i + 3, 255)
+    }
+  }
+
+  obsid.upload_texture(0, bytes.data_ptr(tex_data), tex_size, tex_size)
+
+  // ── Quad geometry: 4 verts, 2 triangles, uv spans (0..4) for tiling ──
+  let verts = bytes.new(4 * 44)
+  let idx = bytes.new(6 * 2)
+
+  // v0 — bottom-left
+  let o = 0
+  bytes.set_f32_le(verts, o + 0, 0.0 - 2.0); bytes.set_f32_le(verts, o + 4, 0.0); bytes.set_f32_le(verts, o + 8, 0.0 - 2.0)
+  bytes.set_f32_le(verts, o + 12, 0.0); bytes.set_f32_le(verts, o + 16, 1.0); bytes.set_f32_le(verts, o + 20, 0.0)
+  bytes.set_f32_le(verts, o + 24, 1.0); bytes.set_f32_le(verts, o + 28, 1.0); bytes.set_f32_le(verts, o + 32, 1.0)
+  bytes.set_f32_le(verts, o + 36, 0.0); bytes.set_f32_le(verts, o + 40, 0.0)
+
+  // v1 — bottom-right
+  let o1 = 44
+  bytes.set_f32_le(verts, o1 + 0, 2.0); bytes.set_f32_le(verts, o1 + 4, 0.0); bytes.set_f32_le(verts, o1 + 8, 0.0 - 2.0)
+  bytes.set_f32_le(verts, o1 + 12, 0.0); bytes.set_f32_le(verts, o1 + 16, 1.0); bytes.set_f32_le(verts, o1 + 20, 0.0)
+  bytes.set_f32_le(verts, o1 + 24, 1.0); bytes.set_f32_le(verts, o1 + 28, 1.0); bytes.set_f32_le(verts, o1 + 32, 1.0)
+  bytes.set_f32_le(verts, o1 + 36, 4.0); bytes.set_f32_le(verts, o1 + 40, 0.0)
+
+  // v2 — top-right
+  let o2 = 88
+  bytes.set_f32_le(verts, o2 + 0, 2.0); bytes.set_f32_le(verts, o2 + 4, 0.0); bytes.set_f32_le(verts, o2 + 8, 2.0)
+  bytes.set_f32_le(verts, o2 + 12, 0.0); bytes.set_f32_le(verts, o2 + 16, 1.0); bytes.set_f32_le(verts, o2 + 20, 0.0)
+  bytes.set_f32_le(verts, o2 + 24, 1.0); bytes.set_f32_le(verts, o2 + 28, 1.0); bytes.set_f32_le(verts, o2 + 32, 1.0)
+  bytes.set_f32_le(verts, o2 + 36, 4.0); bytes.set_f32_le(verts, o2 + 40, 4.0)
+
+  // v3 — top-left
+  let o3 = 132
+  bytes.set_f32_le(verts, o3 + 0, 0.0 - 2.0); bytes.set_f32_le(verts, o3 + 4, 0.0); bytes.set_f32_le(verts, o3 + 8, 2.0)
+  bytes.set_f32_le(verts, o3 + 12, 0.0); bytes.set_f32_le(verts, o3 + 16, 1.0); bytes.set_f32_le(verts, o3 + 20, 0.0)
+  bytes.set_f32_le(verts, o3 + 24, 1.0); bytes.set_f32_le(verts, o3 + 28, 1.0); bytes.set_f32_le(verts, o3 + 32, 1.0)
+  bytes.set_f32_le(verts, o3 + 36, 0.0); bytes.set_f32_le(verts, o3 + 40, 4.0)
+
+  // CCW from +Y (top)
+  bytes.set_u16_le(idx, 0, 0)
+  bytes.set_u16_le(idx, 2, 1)
+  bytes.set_u16_le(idx, 4, 2)
+  bytes.set_u16_le(idx, 6, 0)
+  bytes.set_u16_le(idx, 8, 2)
+  bytes.set_u16_le(idx, 10, 3)
+
+  obsid.create_mesh(0)
+  obsid.upload_mesh(0, bytes.data_ptr(verts), 4, bytes.data_ptr(idx), 6)
+  obsid.set_mesh_texture(0, 0)
+  obsid.set_mesh_material(0, 8.0, 0.2, 0.2, 0.2)
+
+  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.4, 4.0, 2.0, 15.0)
+}
+
+fn render_frame(time: Float) -> Unit = {
+  obsid.orbit_apply(60.0, obsid.get_aspect(), 0.1, 100.0)
+  obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 1.0, 0.6)
+  obsid.set_ambient(0.25, 0.25, 0.3)
+  obsid.set_fog(0.06, 0.08, 0.14, 20.0, 60.0)
+  obsid.render()
+}

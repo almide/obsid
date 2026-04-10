@@ -49,6 +49,20 @@ fn set_mesh_visible(id: Int, visible: Int) -> Unit
 @extern(wasm, "obsid", "delete_mesh")
 fn delete_mesh(id: Int) -> Unit
 
+// ── Textures ────────────────────────────────────────
+
+@extern(wasm, "obsid", "upload_texture")
+fn upload_texture(id: Int, data_ptr: Int, width: Int, height: Int) -> Unit
+
+@extern(wasm, "obsid", "set_mesh_texture")
+fn set_mesh_texture(mesh_id: Int, tex_id: Int) -> Unit
+
+@extern(wasm, "obsid", "clear_mesh_texture")
+fn clear_mesh_texture(mesh_id: Int) -> Unit
+
+@extern(wasm, "obsid", "delete_texture")
+fn delete_texture(id: Int) -> Unit
+
 // ── Camera ──────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_camera")
@@ -56,18 +70,6 @@ fn set_camera(fov: Float, aspect: Float, near: Float, far: Float, px: Float, py:
 
 @extern(wasm, "obsid", "get_aspect")
 fn get_aspect() -> Float
-
-@extern(wasm, "obsid", "enable_orbit_controls")
-fn enable_orbit_controls(target_x: Float, target_y: Float, target_z: Float, distance: Float) -> Unit
-
-@extern(wasm, "obsid", "disable_orbit_controls")
-fn disable_orbit_controls() -> Unit
-
-@extern(wasm, "obsid", "set_orbit_angles")
-fn set_orbit_angles(yaw: Float, pitch: Float) -> Unit
-
-@extern(wasm, "obsid", "set_orbit_distance_range")
-fn set_orbit_distance_range(min_distance: Float, max_distance: Float) -> Unit
 
 // ── Lighting ────────────────────────────────────────
 
@@ -125,3 +127,86 @@ fn to_float(x: Int) -> Float
 
 @extern(wasm, "obsid", "to_int")
 fn to_int(x: Float) -> Int
+
+// ── Orbit Camera Helper ────────────────────────────
+//
+// A default orbit camera implementation that stores its state in
+// state_f slots 20-25 and state slot 30-32. Example files define
+// their own event handlers that delegate to these helpers.
+//
+// Slot layout:
+//   state_f 20: yaw
+//   state_f 21: pitch
+//   state_f 22: distance
+//   state_f 23-25: target x/y/z
+//   state_f 26: min distance
+//   state_f 27: max distance
+//   state_f 31-32: last pointer x/y
+//   state   30: dragging flag
+
+fn orbit_init(tx: Float, ty: Float, tz: Float, yaw: Float, pitch: Float, dist: Float, min_dist: Float, max_dist: Float) -> Unit = {
+  set_state_f(20, yaw)
+  set_state_f(21, pitch)
+  set_state_f(22, dist)
+  set_state_f(23, tx)
+  set_state_f(24, ty)
+  set_state_f(25, tz)
+  set_state_f(26, min_dist)
+  set_state_f(27, max_dist)
+  set_state(30, 0)
+}
+
+fn orbit_apply(fov: Float, aspect: Float, near: Float, far: Float) -> Unit = {
+  let yaw = get_state_f(20)
+  let pitch = get_state_f(21)
+  let dist = get_state_f(22)
+  let tx = get_state_f(23)
+  let ty = get_state_f(24)
+  let tz = get_state_f(25)
+  let cp = cos(pitch)
+  let sp = sin(pitch)
+  let cy = cos(yaw)
+  let sy = sin(yaw)
+  let px = tx + dist * cp * sy
+  let py = ty + dist * sp
+  let pz = tz + dist * cp * cy
+  set_camera(fov, aspect, near, far, px, py, pz, tx, ty, tz)
+}
+
+fn orbit_on_pointer_down(x: Float, y: Float) -> Unit = {
+  set_state(30, 1)
+  set_state_f(31, x)
+  set_state_f(32, y)
+}
+
+fn orbit_on_pointer_up() -> Unit = {
+  set_state(30, 0)
+}
+
+fn orbit_on_pointer_move(x: Float, y: Float) -> Unit = {
+  if get_state(30) == 0 then () else {
+    let dx = x - get_state_f(31)
+    let dy = y - get_state_f(32)
+    set_state_f(31, x)
+    set_state_f(32, y)
+    let yaw = get_state_f(20) - dx * 0.01
+    let raw = get_state_f(21) - dy * 0.01
+    let pitch = if raw < 0.0 - 1.5 then 0.0 - 1.5
+                else if raw > 1.5 then 1.5
+                else raw
+    set_state_f(20, yaw)
+    set_state_f(21, pitch)
+  }
+}
+
+fn orbit_on_wheel(delta_y: Float) -> Unit = {
+  let d = get_state_f(22)
+  let factor = pow(1.001, delta_y)
+  let new_d = d * factor
+  let min_d = get_state_f(26)
+  let max_d = get_state_f(27)
+  let clamped = if new_d < min_d then min_d
+                else if new_d > max_d then max_d
+                else new_d
+  set_state_f(22, clamped)
+}

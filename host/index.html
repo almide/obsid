@@ -64,6 +64,7 @@
       { id: "triangle",  label: "Triangle"  },
       { id: "sphere",    label: "Sphere"    },
       { id: "torus",     label: "Torus"     },
+      { id: "checker",   label: "Checker"   },
     ];
 
     const params = new URL(location).searchParams;
@@ -108,11 +109,9 @@
     }
     requestAnimationFrame(updateStats);
 
-    // Load WASM
+    // Load WASM (resize is now handled inside obsid.js via on_resize forwarding)
     Obsid.load(`examples/${current.id}.wasm`, "canvas")
       .catch(e => console.error("Failed:", e));
-
-    window.addEventListener("resize", () => location.reload());
   </script>
 </body>
 </html>

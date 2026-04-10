@@ -90,6 +90,33 @@ const ObsidGL = {
     return new Uint16Array(memory.buffer, byteOffset, count);
   },
 
+  viewU8(memory, byteOffset, count) {
+    return new Uint8Array(memory.buffer, byteOffset, count);
+  },
+
+  // ── Textures ──────────────────────────────────────
+  createTexture(gl, pixels, width, height) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    const isPOT = (width & (width - 1)) === 0 && (height & (height - 1)) === 0;
+    const wrap = isPOT ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+    return tex;
+  },
+
+  deleteTexture(gl, tex) {
+    gl.deleteTexture(tex);
+  },
+
+  bindTextureUnit(gl, unit, tex) {
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+  },
+
   // ── Vertex attributes ─────────────────────────────
   bindVertexAttrib(gl, buf, loc, size, stride, offset) {
     if (loc < 0) return;

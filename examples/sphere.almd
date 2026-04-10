@@ -1,20 +1,31 @@
-// obsid example — procedural UV sphere
-// Demonstrates parametric mesh generation with nested for loops.
-
+// obsid example — procedural UV sphere with orbit camera
 import self as obsid
+
+// Event handlers delegate to obsid's default orbit camera.
+// Override these to implement custom camera behavior.
+fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = {
+  obsid.orbit_on_pointer_down(x, y)
+}
+fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = {
+  obsid.orbit_on_pointer_up()
+}
+fn on_pointer_move(x: Float, y: Float) -> Unit = {
+  obsid.orbit_on_pointer_move(x, y)
+}
+fn on_wheel(delta_y: Float) -> Unit = {
+  obsid.orbit_on_wheel(delta_y)
+}
 
 effect fn main() -> Unit = {
   let segs = 64
   let rings = 32
   let radius = 2.0
-
   let vc = (rings + 1) * (segs + 1)
   let ic = rings * segs * 6
 
-  let verts = bytes.new(vc * 36)
+  let verts = bytes.new(vc * 44)
   let idx = bytes.new(ic * 2)
 
-  // Vertices
   for ring in 0..(rings + 1) {
     for seg in 0..(segs + 1) {
       let phi = obsid.pi() * obsid.to_float(ring) / obsid.to_float(rings)
@@ -23,17 +34,14 @@ effect fn main() -> Unit = {
       let nx = sin_phi * obsid.cos(theta)
       let ny = obsid.cos(phi)
       let nz = sin_phi * obsid.sin(theta)
-
       let vi = ring * (segs + 1) + seg
-      let off = vi * 36
-
+      let off = vi * 44
       bytes.set_f32_le(verts, off + 0, nx * radius)
       bytes.set_f32_le(verts, off + 4, ny * radius)
       bytes.set_f32_le(verts, off + 8, nz * radius)
       bytes.set_f32_le(verts, off + 12, nx)
       bytes.set_f32_le(verts, off + 16, ny)
       bytes.set_f32_le(verts, off + 20, nz)
-      // Gradient: top white, bottom teal
       let t = (ny + 1.0) * 0.5
       bytes.set_f32_le(verts, off + 24, 0.2 + t * 0.7)
       bytes.set_f32_le(verts, off + 28, 0.5 + t * 0.4)
@@ -41,7 +49,6 @@ effect fn main() -> Unit = {
     }
   }
 
-  // Indices
   for ring in 0..rings {
     for seg in 0..segs {
       let qi = ring * segs + seg
@@ -59,23 +66,19 @@ effect fn main() -> Unit = {
 
   obsid.create_mesh(0)
   obsid.upload_mesh(0, bytes.data_ptr(verts), vc, bytes.data_ptr(idx), ic)
-  // Glossy Phong: high shininess, bright specular
   obsid.set_mesh_material(0, 64.0, 0.9, 0.9, 0.95)
 
-  // Interactive camera (drag to rotate, wheel to zoom)
-  obsid.enable_orbit_controls(0.0, 0.0, 0.0, 7.0)
-  obsid.set_orbit_distance_range(3.0, 20.0)
+  // target origin, initial yaw 0, pitch 0.3, distance 7, [3..20]
+  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.3, 7.0, 3.0, 20.0)
 }
 
-pub fn render_frame(time: Float) -> Unit = {
-  // Update projection params; orbit controls override pos/target
-  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-  // Dim base lighting so point lights pop
+fn render_frame(time: Float) -> Unit = {
+  obsid.orbit_apply(60.0, obsid.get_aspect(), 0.1, 100.0)
+
   obsid.set_dir_light(0.25, 0.25, 0.3, 0.6, 0.8, 0.4)
   obsid.set_ambient(0.08, 0.08, 0.1)
   obsid.set_fog(0.04, 0.05, 0.1, 15.0, 50.0)
 
-  // Two bright orbiting lights
   let r1 = 3.5
   obsid.set_point_light(0,
     obsid.cos(time * 1.0) * r1, 0.8, obsid.sin(time * 1.0) * r1,
@@ -84,8 +87,6 @@ pub fn render_frame(time: Float) -> Unit = {
     obsid.cos(time * 0.7 + 3.14) * r1, 0.0 - 0.8, obsid.sin(time * 0.7 + 3.14) * r1,
     0.2, 0.5, 2.5, 8.0)
 
-  // Slow sphere rotation
   obsid.set_mesh_rotation(0, 0.0, time * 0.15, 0.0)
-
   obsid.render()
 }

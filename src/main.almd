@@ -6,6 +6,11 @@
 
 import self as obsid
 
+fn on_pointer_down(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_down(x, y) }
+fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit_on_pointer_up() }
+fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
+fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
+
 effect fn main() -> Unit = {
   let size = 32
   let half = 16.0
@@ -13,14 +18,14 @@ effect fn main() -> Unit = {
   let qc = (size - 1) * (size - 1)
   let ic = qc * 6
 
-  let verts = bytes.new(vc * 36)
+  let verts = bytes.new(vc * 44)
   let idx = bytes.new(ic * 2)
 
   // ── Build vertices ──
   for z in 0..size {
     for x in 0..size {
       let i = z * size + x
-      let off = i * 36
+      let off = i * 44
 
       let fx = obsid.to_float(x) - half
       let fz = obsid.to_float(z) - half
@@ -84,12 +89,11 @@ effect fn main() -> Unit = {
   obsid.set_mesh_position(0, 0.0, 0.0, 0.0)
   obsid.set_mesh_material(0, 16.0, 0.3, 0.3, 0.4)
 
-  obsid.enable_orbit_controls(0.0, 0.0, 0.0, 32.0)
-  obsid.set_orbit_distance_range(10.0, 80.0)
+  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.3, 32.0, 10.0, 80.0)
 }
 
-pub fn render_frame(time: Float) -> Unit = {
-  obsid.set_camera(60.0, obsid.get_aspect(), 0.1, 200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+fn render_frame(time: Float) -> Unit = {
+  obsid.orbit_apply(60.0, obsid.get_aspect(), 0.1, 200.0)
   obsid.set_dir_light(0.7, 0.7, 0.75, 0.5, 1.0, 0.4)
   obsid.set_ambient(0.12, 0.14, 0.2)
   obsid.set_fog(0.04, 0.05, 0.1, 30.0, 80.0)
