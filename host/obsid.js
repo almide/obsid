@@ -540,7 +540,14 @@ const Obsid = {
     memory = instance.exports.memory;
     instanceRef = instance;
 
-    Obsid.showError("canvas: " + canvas.width + "x" + canvas.height + " | gl: " + (gl instanceof WebGL2RenderingContext ? "webgl2" : "webgl") + " | exports: " + Object.keys(instance.exports).filter(n=>!n.startsWith('_')&&!n.startsWith('memory')).join(","));
+    // Diagnostics go to console (Safari Web Inspector over USB handles mobile).
+    // The red overlay stays reserved for real errors so users don't mistake
+    // runtime info for a crash.
+    console.log(
+      "obsid: canvas=" + canvas.width + "x" + canvas.height +
+      " gl=" + (gl instanceof WebGL2RenderingContext ? "webgl2" : "webgl") +
+      " exports=[" + Object.keys(instance.exports).filter(n=>!n.startsWith('_')&&!n.startsWith('memory')).join(",") + "]"
+    );
 
     if (instance.exports._start) {
       try { instance.exports._start(); }
