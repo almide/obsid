@@ -10,8 +10,25 @@
 //   <script>Obsid.load("app.wasm", "canvas")</script>
 
 const Obsid = {
+  showError(msg) {
+    let el = document.getElementById("obsid-error");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "obsid-error";
+      el.style.cssText = "position:fixed;bottom:12px;left:12px;right:12px;padding:10px;background:rgba(200,30,30,0.9);color:#fff;font:12px/1.4 monospace;border-radius:6px;z-index:9999;white-space:pre-wrap;word-break:break-all;max-height:40vh;overflow:auto";
+      document.body.appendChild(el);
+    }
+    el.textContent = (el.textContent ? el.textContent + "\n" : "") + msg;
+  },
+
   async load(wasmUrl, canvasEl) {
-    const { gl, canvas } = ObsidGL.init(canvasEl);
+    let gl, canvas;
+    try {
+      ({ gl, canvas } = ObsidGL.init(canvasEl));
+    } catch (e) {
+      this.showError("WebGL init: " + e.message);
+      throw e;
+    }
 
     let memory;
     const state = {}, stateF = {};
@@ -58,17 +75,20 @@ const Obsid = {
     }
 
     // ── Shader ────────────────────────────────────────
-    const MAX_POINTS = 4;
+    // MAX_POINTS capped at 2 to stay well under mobile GPU
+    // MAX_FRAGMENT_UNIFORM_VECTORS (minimum 16 on WebGL 1).
+    const MAX_POINTS = 2;
     const VS = `
-      precision mediump float;
+      precision highp float;
       attribute vec3 a_pos, a_norm, a_color;
       attribute vec2 a_uv;
       uniform mat4 u_vp;
       uniform mat4 u_model;
       uniform vec3 u_eye;
-      varying vec3 v_norm, v_color, v_wpos;
+      varying vec3 v_norm, v_color;
+      varying highp vec3 v_wpos;
       varying vec2 v_uv;
-      varying float v_dist;
+      varying highp float v_dist;
       void main() {
         vec4 world = u_model * vec4(a_pos, 1.0);
         v_wpos = world.xyz;
@@ -81,10 +101,11 @@ const Obsid = {
     `;
     const FS = `
       precision mediump float;
-      varying vec3 v_norm, v_color, v_wpos;
+      varying vec3 v_norm, v_color;
+      varying highp vec3 v_wpos;
       varying vec2 v_uv;
-      varying float v_dist;
-      uniform vec3 u_eye;
+      varying highp float v_dist;
+      uniform highp vec3 u_eye;
       uniform vec3 u_sun_color, u_sun_dir, u_ambient, u_fog_color;
       uniform vec2 u_fog_range;
       uniform float u_shininess;

@@ -16,8 +16,13 @@ const ObsidGL = {
   init(canvasEl) {
     const canvas = typeof canvasEl === "string" ? document.getElementById(canvasEl) : canvasEl;
     if (!canvas) throw new Error(`Canvas not found: ${canvasEl}`);
-    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
-    if (!gl) throw new Error("WebGL not supported");
+    // Try WebGL 2 first, fall back to WebGL 1. iOS Safari sometimes has
+    // quirks with WebGL 2; the WebGL 1 path is more battle-tested.
+    const opts = { antialias: true, preserveDrawingBuffer: false, powerPreference: "default" };
+    let gl = canvas.getContext("webgl2", opts)
+          || canvas.getContext("webgl", opts)
+          || canvas.getContext("experimental-webgl", opts);
+    if (!gl) throw new Error("WebGL not supported on this device");
     return { gl, canvas };
   },
 
@@ -27,7 +32,10 @@ const ObsidGL = {
     gl.shaderSource(sh, src);
     gl.compileShader(sh);
     if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-      console.error(gl.getShaderInfoLog(sh));
+      const log = gl.getShaderInfoLog(sh);
+      const kind = type === gl.VERTEX_SHADER ? "VS" : "FS";
+      console.error(kind + " compile:", log);
+      if (typeof Obsid !== "undefined") Obsid.showError(kind + " compile:\n" + log);
       gl.deleteShader(sh);
       return null;
     }
@@ -43,7 +51,9 @@ const ObsidGL = {
     gl.attachShader(prog, fs);
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(prog));
+      const log = gl.getProgramInfoLog(prog);
+      console.error("program link:", log);
+      if (typeof Obsid !== "undefined") Obsid.showError("program link:\n" + log);
       gl.deleteProgram(prog);
       return null;
     }
