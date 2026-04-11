@@ -1,9 +1,10 @@
-// obsid example — procedural checker texture
+// obsid example — checker-textured cube with 6 correctly-wound faces.
 //
-// Generates a 64x64 RGBA checkerboard texture entirely in WASM linear memory,
-// then hands the pointer to obsid for GPU upload. The texture is applied to
-// a flat quad. This demonstrates the same zero-copy pattern used for vertex
-// data, but for pixel data.
+// Builds a 64×64 RGBA checkerboard texture, then constructs a 2×2×2 cube
+// with per-face normals and UVs. The cube tumbles slowly in render_frame
+// so every face comes into view — a 3D object stays visible at any camera
+// pitch, unlike the earlier flat-quad version which degenerated into an
+// invisible line when viewed from the side.
 
 import self as obsid
 
@@ -12,8 +13,38 @@ effect fn on_pointer_up(x: Float, y: Float, button: Int) -> Unit = { obsid.orbit
 effect fn on_pointer_move(x: Float, y: Float) -> Unit = { obsid.orbit_on_pointer_move(x, y) }
 effect fn on_wheel(delta_y: Float) -> Unit = { obsid.orbit_on_wheel(delta_y) }
 
+// Write one vertex (pos + normal + white color + uv) into `verts` at index `vi`.
+// Layout matches obsid's 44-byte stride: pos(12) + norm(12) + color(12) + uv(8).
+effect fn write_vert(verts: Bytes, vi: Int, px: Float, py: Float, pz: Float, nx: Float, ny: Float, nz: Float, u: Float, v: Float) -> Unit = {
+  let o = vi * 44
+  bytes.set_f32_le(verts, o + 0, px)
+  bytes.set_f32_le(verts, o + 4, py)
+  bytes.set_f32_le(verts, o + 8, pz)
+  bytes.set_f32_le(verts, o + 12, nx)
+  bytes.set_f32_le(verts, o + 16, ny)
+  bytes.set_f32_le(verts, o + 20, nz)
+  bytes.set_f32_le(verts, o + 24, 1.0)
+  bytes.set_f32_le(verts, o + 28, 1.0)
+  bytes.set_f32_le(verts, o + 32, 1.0)
+  bytes.set_f32_le(verts, o + 36, u)
+  bytes.set_f32_le(verts, o + 40, v)
+}
+
+// Write one face's 6 indices (two triangles sharing an edge).
+// Assumes 4 verts per face, laid out CCW from outside at (face*4 .. face*4+3).
+effect fn write_face_indices(idx: Bytes, face: Int) -> Unit = {
+  let io = face * 12
+  let vi = face * 4
+  bytes.set_u16_le(idx, io + 0, vi + 0)
+  bytes.set_u16_le(idx, io + 2, vi + 1)
+  bytes.set_u16_le(idx, io + 4, vi + 2)
+  bytes.set_u16_le(idx, io + 6, vi + 0)
+  bytes.set_u16_le(idx, io + 8, vi + 2)
+  bytes.set_u16_le(idx, io + 10, vi + 3)
+}
+
 effect fn main() -> Unit = {
-  // ── Procedural texture: 64x64 RGBA checker ──
+  // ── Procedural texture: 64×64 RGBA with 8×8 cells ──
   let tex_size = 64
   let tex_bytes = tex_size * tex_size * 4
   let tex_data = bytes.new(tex_bytes)
@@ -21,7 +52,6 @@ effect fn main() -> Unit = {
   for y in 0..tex_size {
     for x in 0..tex_size {
       let i = (y * tex_size + x) * 4
-      // 8x8 cells, alternating between two colors
       let cx = x / 8
       let cy = y / 8
       let checker = (cx + cy) % 2
@@ -37,55 +67,65 @@ effect fn main() -> Unit = {
 
   obsid.upload_texture(0, bytes.data_ptr(tex_data), tex_size, tex_size)
 
-  // ── Quad geometry: 4 verts, 2 triangles, uv spans (0..4) for tiling ──
-  let verts = bytes.new(4 * 44)
-  let idx = bytes.new(6 * 2)
+  // ── Cube geometry: 24 verts (6 faces × 4 corners) + 36 indices ──
+  // p = +1, n = -1. Corners of a unit cube centered at origin.
+  let verts = bytes.new(24 * 44)
+  let idx = bytes.new(36 * 2)
+  let p = 1.0
+  let n = 0.0 - 1.0
 
-  // v0 — bottom-left
-  let o = 0
-  bytes.set_f32_le(verts, o + 0, 0.0 - 2.0); bytes.set_f32_le(verts, o + 4, 0.0); bytes.set_f32_le(verts, o + 8, 0.0 - 2.0)
-  bytes.set_f32_le(verts, o + 12, 0.0); bytes.set_f32_le(verts, o + 16, 1.0); bytes.set_f32_le(verts, o + 20, 0.0)
-  bytes.set_f32_le(verts, o + 24, 1.0); bytes.set_f32_le(verts, o + 28, 1.0); bytes.set_f32_le(verts, o + 32, 1.0)
-  bytes.set_f32_le(verts, o + 36, 0.0); bytes.set_f32_le(verts, o + 40, 0.0)
+  // Each face lists its 4 corners CCW when viewed from outside the cube,
+  // then the full checker texture is mapped across the face via UVs
+  // BL=(0,0) → BR=(1,0) → TR=(1,1) → TL=(0,1).
 
-  // v1 — bottom-right
-  let o1 = 44
-  bytes.set_f32_le(verts, o1 + 0, 2.0); bytes.set_f32_le(verts, o1 + 4, 0.0); bytes.set_f32_le(verts, o1 + 8, 0.0 - 2.0)
-  bytes.set_f32_le(verts, o1 + 12, 0.0); bytes.set_f32_le(verts, o1 + 16, 1.0); bytes.set_f32_le(verts, o1 + 20, 0.0)
-  bytes.set_f32_le(verts, o1 + 24, 1.0); bytes.set_f32_le(verts, o1 + 28, 1.0); bytes.set_f32_le(verts, o1 + 32, 1.0)
-  bytes.set_f32_le(verts, o1 + 36, 4.0); bytes.set_f32_le(verts, o1 + 40, 0.0)
+  // +X face (normal = (1, 0, 0))
+  write_vert(verts, 0,  p, n, n,   p, 0.0, 0.0,  0.0, 0.0)
+  write_vert(verts, 1,  p, p, n,   p, 0.0, 0.0,  1.0, 0.0)
+  write_vert(verts, 2,  p, p, p,   p, 0.0, 0.0,  1.0, 1.0)
+  write_vert(verts, 3,  p, n, p,   p, 0.0, 0.0,  0.0, 1.0)
 
-  // v2 — top-right
-  let o2 = 88
-  bytes.set_f32_le(verts, o2 + 0, 2.0); bytes.set_f32_le(verts, o2 + 4, 0.0); bytes.set_f32_le(verts, o2 + 8, 2.0)
-  bytes.set_f32_le(verts, o2 + 12, 0.0); bytes.set_f32_le(verts, o2 + 16, 1.0); bytes.set_f32_le(verts, o2 + 20, 0.0)
-  bytes.set_f32_le(verts, o2 + 24, 1.0); bytes.set_f32_le(verts, o2 + 28, 1.0); bytes.set_f32_le(verts, o2 + 32, 1.0)
-  bytes.set_f32_le(verts, o2 + 36, 4.0); bytes.set_f32_le(verts, o2 + 40, 4.0)
+  // -X face (normal = (-1, 0, 0))
+  write_vert(verts, 4,  n, n, n,   n, 0.0, 0.0,  0.0, 0.0)
+  write_vert(verts, 5,  n, n, p,   n, 0.0, 0.0,  1.0, 0.0)
+  write_vert(verts, 6,  n, p, p,   n, 0.0, 0.0,  1.0, 1.0)
+  write_vert(verts, 7,  n, p, n,   n, 0.0, 0.0,  0.0, 1.0)
 
-  // v3 — top-left
-  let o3 = 132
-  bytes.set_f32_le(verts, o3 + 0, 0.0 - 2.0); bytes.set_f32_le(verts, o3 + 4, 0.0); bytes.set_f32_le(verts, o3 + 8, 2.0)
-  bytes.set_f32_le(verts, o3 + 12, 0.0); bytes.set_f32_le(verts, o3 + 16, 1.0); bytes.set_f32_le(verts, o3 + 20, 0.0)
-  bytes.set_f32_le(verts, o3 + 24, 1.0); bytes.set_f32_le(verts, o3 + 28, 1.0); bytes.set_f32_le(verts, o3 + 32, 1.0)
-  bytes.set_f32_le(verts, o3 + 36, 0.0); bytes.set_f32_le(verts, o3 + 40, 4.0)
+  // +Y face (normal = (0, 1, 0))
+  write_vert(verts, 8,  n, p, n,   0.0, p, 0.0,  0.0, 0.0)
+  write_vert(verts, 9,  n, p, p,   0.0, p, 0.0,  1.0, 0.0)
+  write_vert(verts, 10, p, p, p,   0.0, p, 0.0,  1.0, 1.0)
+  write_vert(verts, 11, p, p, n,   0.0, p, 0.0,  0.0, 1.0)
 
-  // CCW from +Y (top)
-  bytes.set_u16_le(idx, 0, 0)
-  bytes.set_u16_le(idx, 2, 1)
-  bytes.set_u16_le(idx, 4, 2)
-  bytes.set_u16_le(idx, 6, 0)
-  bytes.set_u16_le(idx, 8, 2)
-  bytes.set_u16_le(idx, 10, 3)
+  // -Y face (normal = (0, -1, 0))
+  write_vert(verts, 12, n, n, n,   0.0, n, 0.0,  0.0, 0.0)
+  write_vert(verts, 13, p, n, n,   0.0, n, 0.0,  1.0, 0.0)
+  write_vert(verts, 14, p, n, p,   0.0, n, 0.0,  1.0, 1.0)
+  write_vert(verts, 15, n, n, p,   0.0, n, 0.0,  0.0, 1.0)
+
+  // +Z face (normal = (0, 0, 1))
+  write_vert(verts, 16, n, n, p,   0.0, 0.0, p,  0.0, 0.0)
+  write_vert(verts, 17, p, n, p,   0.0, 0.0, p,  1.0, 0.0)
+  write_vert(verts, 18, p, p, p,   0.0, 0.0, p,  1.0, 1.0)
+  write_vert(verts, 19, n, p, p,   0.0, 0.0, p,  0.0, 1.0)
+
+  // -Z face (normal = (0, 0, -1))
+  write_vert(verts, 20, n, n, n,   0.0, 0.0, n,  0.0, 0.0)
+  write_vert(verts, 21, n, p, n,   0.0, 0.0, n,  1.0, 0.0)
+  write_vert(verts, 22, p, p, n,   0.0, 0.0, n,  1.0, 1.0)
+  write_vert(verts, 23, p, n, n,   0.0, 0.0, n,  0.0, 1.0)
+
+  for f in 0..6 {
+    write_face_indices(idx, f)
+  }
 
   obsid.create_mesh(0)
-  obsid.upload_mesh(0, bytes.data_ptr(verts), 4, bytes.data_ptr(idx), 6)
+  obsid.upload_mesh(0, bytes.data_ptr(verts), 24, bytes.data_ptr(idx), 36)
   obsid.set_mesh_texture(0, 0)
-  obsid.set_mesh_material(0, 8.0, 0.2, 0.2, 0.2)
+  obsid.set_mesh_material(0, 32.0, 0.3, 0.3, 0.3)
 
-  // The checker is a flat floor quad — a shallow pitch turns it almost
-  // edge-on and hides the texture. Start from a 3/4 view (~46°) so the
-  // tiling pattern is visible from the first frame.
-  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.8, 4.0, 2.0, 15.0)
+  // Orbit camera: pitch ~17°, distance 5 — frames the 2×2×2 cube comfortably
+  // and leaves room for the tumbling animation without clipping.
+  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.3, 5.0, 2.5, 15.0)
 }
 
 effect fn render_frame(time: Float) -> Unit = {
@@ -93,5 +133,7 @@ effect fn render_frame(time: Float) -> Unit = {
   obsid.set_dir_light(1.0, 0.95, 0.85, 0.4, 1.0, 0.6)
   obsid.set_ambient(0.25, 0.25, 0.3)
   obsid.set_fog(0.06, 0.08, 0.14, 20.0, 60.0)
+  // Tumble on two axes so every face passes through the front view.
+  obsid.set_mesh_rotation(0, time * 0.3, time * 0.5, 0.0)
   obsid.render()
 }
