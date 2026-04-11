@@ -98,16 +98,13 @@ effect fn render_frame(time: Float) -> Unit = {
   obsid.set_ambient(0.12, 0.14, 0.2)
   obsid.set_fog(0.04, 0.05, 0.1, 30.0, 80.0)
 
-  // Three colored lanterns drifting over the terrain
+  // Two colored lanterns drifting over the terrain
   obsid.set_point_light(0,
     obsid.sin(time * 0.35) * 12.0, 5.0, obsid.cos(time * 0.35) * 12.0,
-    1.2, 0.5, 0.2, 18.0)
+    1.5, 0.5, 0.2, 22.0)
   obsid.set_point_light(1,
-    obsid.sin(time * 0.5 + 2.1) * 10.0, 6.0, obsid.cos(time * 0.5 + 2.1) * 10.0,
-    0.3, 1.0, 0.4, 18.0)
-  obsid.set_point_light(2,
-    obsid.sin(time * 0.25 + 4.2) * 14.0, 4.5, obsid.cos(time * 0.25 + 4.2) * 14.0,
-    0.4, 0.5, 1.2, 18.0)
+    obsid.sin(time * 0.5 + 3.14) * 10.0, 6.0, obsid.cos(time * 0.5 + 3.14) * 10.0,
+    0.3, 0.6, 1.4, 22.0)
 
   obsid.render()
 }
