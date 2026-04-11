@@ -15,20 +15,27 @@
       display: flex; justify-content: space-between; align-items: flex-start;
       pointer-events: none; gap: 12px;
     }
-    #picker {
+    #left-stack {
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+    }
+    .pill-row {
       display: flex; gap: 6px; flex-wrap: wrap;
       background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
       padding: 6px; border-radius: 8px; pointer-events: auto;
     }
-    #picker button {
+    .pill-row button {
       background: transparent; color: #ccc; border: 1px solid transparent;
       font: 13px/1 monospace; padding: 8px 12px; border-radius: 4px;
       cursor: pointer; transition: all 0.15s;
     }
-    #picker button:hover { color: #fff; background: rgba(255,255,255,0.08); }
-    #picker button.active {
+    .pill-row button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .pill-row button.active {
       color: #fff; background: rgba(255,255,255,0.12);
       border-color: rgba(255,255,255,0.25);
+    }
+    .pill-label {
+      color: #666; font: 10px/1 monospace; padding: 0 4px;
+      align-self: center; letter-spacing: 0.05em; text-transform: uppercase;
     }
     #stats {
       background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
@@ -49,7 +56,10 @@
   <canvas id="canvas"></canvas>
 
   <div id="ui">
-    <div id="picker"></div>
+    <div id="left-stack">
+      <div id="picker" class="pill-row"></div>
+      <div id="quality" class="pill-row"></div>
+    </div>
     <div id="stats">— fps</div>
   </div>
 
@@ -71,26 +81,47 @@
 
     const params = new URL(location).searchParams;
     const current = EXAMPLES.find(e => e.id === params.get("ex")) || EXAMPLES[0];
+    const currentQuality = Obsid.getQuality(params.get("q"));
 
-    // Build picker
+    // Helper: swap a query param and navigate (same pattern the example
+    // picker already uses — full reload so context/shaders rebuild cleanly).
+    function navigateWithParam(key, value) {
+      const url = new URL(location);
+      url.searchParams.set(key, value);
+      location.href = url.toString();
+    }
+
+    // Build example picker
     const picker = document.getElementById("picker");
     for (const ex of EXAMPLES) {
       const b = document.createElement("button");
       b.textContent = ex.label;
       if (ex.id === current.id) b.classList.add("active");
       b.addEventListener("click", () => {
-        if (ex.id !== current.id) {
-          const url = new URL(location);
-          url.searchParams.set("ex", ex.id);
-          location.href = url.toString();
-        }
+        if (ex.id !== current.id) navigateWithParam("ex", ex.id);
       });
       picker.appendChild(b);
     }
 
-    // Canvas sizing (DPR-aware)
+    // Build quality picker
+    const qualityBar = document.getElementById("quality");
+    const qLabel = document.createElement("span");
+    qLabel.textContent = "Quality";
+    qLabel.className = "pill-label";
+    qualityBar.appendChild(qLabel);
+    for (const q of Obsid.QUALITIES) {
+      const b = document.createElement("button");
+      b.textContent = q.label;
+      if (q.id === currentQuality.id) b.classList.add("active");
+      b.addEventListener("click", () => {
+        if (q.id !== currentQuality.id) navigateWithParam("q", q.id);
+      });
+      qualityBar.appendChild(b);
+    }
+
+    // Canvas sizing (DPR comes from the chosen quality preset)
     const c = document.getElementById("canvas");
-    const dpr = Math.min(devicePixelRatio, 1.5);
+    const dpr = Obsid.dprFor(currentQuality);
     c.width = window.innerWidth * dpr;
     c.height = window.innerHeight * dpr;
 
@@ -111,8 +142,8 @@
     }
     requestAnimationFrame(updateStats);
 
-    // Load WASM (resize is now handled inside obsid.js via on_resize forwarding)
-    Obsid.load(`examples/${current.id}.wasm`, "canvas")
+    // Load WASM (resize is handled inside obsid.js via on_resize forwarding)
+    Obsid.load(`examples/${current.id}.wasm`, "canvas", currentQuality.id)
       .catch(e => console.error("Failed:", e));
   </script>
 </body>

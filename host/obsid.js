@@ -10,6 +10,33 @@
 //   <script>Obsid.load("app.wasm", "canvas")</script>
 
 const Obsid = {
+  // ── Quality presets ───────────────────────────────
+  //
+  // Each entry controls: canvas backing resolution (dpr cap), MSAA on the
+  // default framebuffer, texture mipmap chain + filter, anisotropic
+  // filtering, and fragment-shader float precision.
+  //
+  // `dpr: null` means "use devicePixelRatio without a cap". Everything else
+  // caps DPR at the given value so very high-DPR mobile displays don't burn
+  // through fill-rate at the low/medium presets.
+  QUALITIES: [
+    { id: "low",    label: "Low",    dpr: 1,    msaa: false, mipmap: false, aniso: 1,  precision: "mediump" },
+    { id: "medium", label: "Medium", dpr: 1.5,  msaa: true,  mipmap: false, aniso: 1,  precision: "mediump" },
+    { id: "high",   label: "High",   dpr: 2,    msaa: true,  mipmap: true,  aniso: 4,  precision: "highp"   },
+    { id: "max",    label: "Max",    dpr: null, msaa: true,  mipmap: true,  aniso: 16, precision: "highp"   },
+  ],
+
+  /** Resolve a quality id to a preset record. Unknown ids fall back to "max". */
+  getQuality(id) {
+    return this.QUALITIES.find(q => q.id === id) || this.QUALITIES[this.QUALITIES.length - 1];
+  },
+
+  /** Compute the actual backing-buffer DPR for a given quality preset. */
+  dprFor(quality) {
+    const native = (typeof devicePixelRatio === "number" && devicePixelRatio > 0) ? devicePixelRatio : 1;
+    return quality.dpr == null ? native : Math.min(native, quality.dpr);
+  },
+
   showError(msg) {
     let el = document.getElementById("obsid-error");
     if (!el) {
@@ -21,10 +48,11 @@ const Obsid = {
     el.textContent = (el.textContent ? el.textContent + "\n" : "") + msg;
   },
 
-  async load(wasmUrl, canvasEl) {
+  async load(wasmUrl, canvasEl, qualityId) {
+    const quality = this.getQuality(qualityId);
     let gl, canvas;
     try {
-      ({ gl, canvas } = ObsidGL.init(canvasEl));
+      ({ gl, canvas } = ObsidGL.init(canvasEl, { antialias: quality.msaa }));
     } catch (e) {
       this.showError("WebGL init: " + e.message);
       throw e;
@@ -100,7 +128,7 @@ const Obsid = {
       }
     `;
     const FS = `
-      precision mediump float;
+      precision ${quality.precision} float;
       varying vec3 v_norm, v_color;
       varying highp vec3 v_wpos;
       varying vec2 v_uv;
@@ -117,23 +145,31 @@ const Obsid = {
       uniform float u_point_range[${MAX_POINTS}];
       uniform sampler2D u_tex;
       uniform int u_has_tex;
+      // sRGB → linear (gamma 2.2 approximation — cheap and close enough for
+      // the 8-bit textures and user-authored colors obsid ships with).
+      vec3 srgbToLinear(vec3 c) { return pow(c, vec3(2.2)); }
+      // Linear → sRGB for final framebuffer output.
+      vec3 linearToSrgb(vec3 c) { return pow(c, vec3(1.0 / 2.2)); }
+
       void main() {
         vec3 n = normalize(v_norm);
         vec3 viewDir = normalize(u_eye - v_wpos);
 
-        // Base color: vertex color, optionally modulated by texture
-        vec3 baseColor = v_color;
+        // Base color: vertex color (sRGB) × texture (sRGB), both decoded to
+        // linear so the lighting below composes correctly.
+        vec3 baseColor = srgbToLinear(v_color);
         if (u_has_tex == 1) {
-          baseColor *= texture2D(u_tex, v_uv).rgb;
+          baseColor *= srgbToLinear(texture2D(u_tex, v_uv).rgb);
         }
 
-        // Directional (sun) — Lambert + Blinn-Phong
+        // Directional (sun) — Lambert + Blinn-Phong, in linear light.
+        vec3 sunColor = srgbToLinear(u_sun_color);
         vec3 sunDir = normalize(u_sun_dir);
         float sunDiff = max(dot(n, sunDir), 0.0);
         vec3 sunHalf = normalize(sunDir + viewDir);
         float sunSpec = sunDiff > 0.0 ? pow(max(dot(n, sunHalf), 0.0), u_shininess) : 0.0;
-        vec3 lighting = u_ambient + u_sun_color * sunDiff;
-        vec3 specular = u_sun_color * sunSpec;
+        vec3 lighting = srgbToLinear(u_ambient) + sunColor * sunDiff;
+        vec3 specular = sunColor * sunSpec;
 
         // Point lights
         for (int i = 0; i < ${MAX_POINTS}; i++) {
@@ -141,22 +177,26 @@ const Obsid = {
           vec3 toLight = u_point_pos[i] - v_wpos;
           float dist = length(toLight);
           vec3 dir = toLight / dist;
+          // Smooth inverse-square-ish falloff — squared before the cutoff
+          // (same as before) but now the color is linear.
           float atten = clamp(1.0 - dist / u_point_range[i], 0.0, 1.0);
           atten *= atten;
           float diff = max(dot(n, dir), 0.0);
           vec3 half_v = normalize(dir + viewDir);
           float spec = diff > 0.0 ? pow(max(dot(n, half_v), 0.0), u_shininess) : 0.0;
-          lighting += u_point_color[i] * diff * atten;
-          specular += u_point_color[i] * spec * atten;
+          vec3 pc = srgbToLinear(u_point_color[i]);
+          lighting += pc * diff * atten;
+          specular += pc * spec * atten;
         }
 
         vec3 color = baseColor * lighting + specular * u_specular;
 
-        // Fog
+        // Fog in linear space.
         float fog = clamp((u_fog_range.y - v_dist) / (u_fog_range.y - u_fog_range.x), 0.0, 1.0);
-        color = mix(u_fog_color, color, fog);
+        color = mix(srgbToLinear(u_fog_color), color, fog);
 
-        gl_FragColor = vec4(color, u_alpha);
+        // Final encode back to sRGB for the framebuffer.
+        gl_FragColor = vec4(linearToSrgb(color), u_alpha);
       }
     `;
 
@@ -217,7 +257,10 @@ const Obsid = {
       let tex = textures.get(id);
       if (tex) ObsidGL.deleteTexture(gl, tex);
       const pixels = ObsidGL.viewU8(memory, dataPtr, width * height * 4);
-      tex = ObsidGL.createTexture(gl, pixels, width, height);
+      tex = ObsidGL.createTexture(gl, pixels, width, height, {
+        mipmap: quality.mipmap,
+        aniso: quality.aniso,
+      });
       textures.set(id, tex);
     }
 
@@ -313,7 +356,7 @@ const Obsid = {
 
     // Window lifecycle
     window.addEventListener("resize", () => {
-      const dpr = Math.min(devicePixelRatio, 1.5);
+      const dpr = Obsid.dprFor(quality);
       canvas.width = window.innerWidth * dpr;
       canvas.height = window.innerHeight * dpr;
       gl.viewport(0, 0, canvas.width, canvas.height);

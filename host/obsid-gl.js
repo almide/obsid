@@ -13,15 +13,23 @@
 
 const ObsidGL = {
   // ── Initialization ────────────────────────────────
-  init(canvasEl) {
+  init(canvasEl, opts = {}) {
     const canvas = typeof canvasEl === "string" ? document.getElementById(canvasEl) : canvasEl;
     if (!canvas) throw new Error(`Canvas not found: ${canvasEl}`);
     // Try WebGL 2 first, fall back to WebGL 1. iOS Safari sometimes has
     // quirks with WebGL 2; the WebGL 1 path is more battle-tested.
-    const opts = { antialias: true, preserveDrawingBuffer: false, powerPreference: "default" };
-    let gl = canvas.getContext("webgl2", opts)
-          || canvas.getContext("webgl", opts)
-          || canvas.getContext("experimental-webgl", opts);
+    const contextOpts = {
+      antialias: opts.antialias !== false,
+      preserveDrawingBuffer: false,
+      // Opaque fullscreen canvas — skip the alpha channel so the browser
+      // compositor doesn't have to blend us with the page underneath.
+      alpha: false,
+      // Ask the browser to prefer the discrete / fast GPU where available.
+      powerPreference: "high-performance",
+    };
+    let gl = canvas.getContext("webgl2", contextOpts)
+          || canvas.getContext("webgl", contextOpts)
+          || canvas.getContext("experimental-webgl", contextOpts);
     if (!gl) throw new Error("WebGL not supported on this device");
     return { gl, canvas };
   },
@@ -105,13 +113,39 @@ const ObsidGL = {
   },
 
   // ── Textures ──────────────────────────────────────
-  createTexture(gl, pixels, width, height) {
+  createTexture(gl, pixels, width, height, opts = {}) {
     const tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
     const isPOT = (width & (width - 1)) === 0 && (height & (height - 1)) === 0;
+
+    // Mipmap chain for minification — only meaningful on power-of-two
+    // textures in WebGL 1. Pairs with LINEAR_MIPMAP_LINEAR (trilinear) for
+    // smooth texture minification at distance and oblique angles.
+    if (opts.mipmap && isPOT) {
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    } else {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    }
+
+    // Anisotropic filtering — keeps the checker pattern crisp when the
+    // surface is viewed at a grazing angle. It's an extension in both
+    // WebGL 1 and WebGL 2, and the common browsers still publish it under
+    // the EXT prefix (WebKit/MOZ variants covered for older engines).
+    const anisoRequested = opts.aniso || 1;
+    if (anisoRequested > 1) {
+      const ext = gl.getExtension("EXT_texture_filter_anisotropic")
+               || gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic")
+               || gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
+      if (ext) {
+        const maxSupported = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+        gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(anisoRequested, maxSupported));
+      }
+    }
+
     const wrap = isPOT ? gl.REPEAT : gl.CLAMP_TO_EDGE;
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
