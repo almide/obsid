@@ -28,7 +28,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/almide
-          key: almide-${{ runner.os }}-develop-f8c03dbb
+          # Bump the hash whenever develop ships a WASM codegen change that
+          # affects obsid output (e.g. multi-memory removal, new instructions).
+          key: almide-${{ runner.os }}-develop-9a88e2a1
 
       - name: Install Almide
         run: |
