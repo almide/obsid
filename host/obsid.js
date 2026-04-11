@@ -516,24 +516,60 @@ const Obsid = {
       },
     };
 
-    const {instance} = await WebAssembly.instantiate(await(await fetch(wasmUrl)).arrayBuffer(),imports);
+    // Fetch + instantiate WASM
+    let instance;
+    try {
+      let bytes;
+      try {
+        const res = await fetch(wasmUrl);
+        if (!res.ok) throw new Error(`fetch ${wasmUrl}: ${res.status}`);
+        bytes = await res.arrayBuffer();
+      } catch (e) {
+        Obsid.showError("Fetch WASM: " + e.message);
+        throw e;
+      }
+      try {
+        ({instance} = await WebAssembly.instantiate(bytes, imports));
+      } catch (e) {
+        Obsid.showError("Instantiate WASM:\n" + e.message);
+        throw e;
+      }
+    } catch (e) {
+      throw e;
+    }
     memory = instance.exports.memory;
     instanceRef = instance;
 
+    Obsid.showError("canvas: " + canvas.width + "x" + canvas.height + " | gl: " + (gl instanceof WebGL2RenderingContext ? "webgl2" : "webgl") + " | exports: " + Object.keys(instance.exports).filter(n=>!n.startsWith('_')&&!n.startsWith('memory')).join(","));
+
     if (instance.exports._start) {
       try { instance.exports._start(); }
-      catch(e) { console.error("_start:", e); }
+      catch(e) {
+        console.error("_start:", e);
+        Obsid.showError("_start: " + e.message);
+      }
+    } else {
+      Obsid.showError("No _start export!");
     }
 
     if (instance.exports.render_frame) {
       let start = null;
+      let errorShown = false;
       function animate(ts) {
         if (!start) start = ts;
         try { instance.exports.render_frame((ts-start)/1000); }
-        catch(e) { console.warn("render_frame:",e.message); }
+        catch(e) {
+          if (!errorShown) {
+            console.warn("render_frame:",e.message);
+            Obsid.showError("render_frame: " + e.message);
+            errorShown = true;
+          }
+        }
         requestAnimationFrame(animate);
       }
       requestAnimationFrame(animate);
+    } else {
+      Obsid.showError("No render_frame export!");
     }
 
     return instance;
