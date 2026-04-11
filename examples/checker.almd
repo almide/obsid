@@ -82,7 +82,10 @@ effect fn main() -> Unit = {
   obsid.set_mesh_texture(0, 0)
   obsid.set_mesh_material(0, 8.0, 0.2, 0.2, 0.2)
 
-  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.4, 4.0, 2.0, 15.0)
+  // The checker is a flat floor quad — a shallow pitch turns it almost
+  // edge-on and hides the texture. Start from a 3/4 view (~46°) so the
+  // tiling pattern is visible from the first frame.
+  obsid.orbit_init(0.0, 0.0, 0.0, 0.0, 0.8, 4.0, 2.0, 15.0)
 }
 
 effect fn render_frame(time: Float) -> Unit = {
