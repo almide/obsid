@@ -240,6 +240,40 @@ const Obsid = {
     }, { passive: false });
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+    // Pinch-to-zoom — synthesise wheel delta from 2-finger touch spread
+    const activeTouches = new Map();
+    let pinchStartDist = 0;
+    canvas.addEventListener("touchstart", (e) => {
+      for (const t of e.changedTouches) {
+        activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      if (activeTouches.size === 2) {
+        const [a, b] = [...activeTouches.values()];
+        pinchStartDist = Math.hypot(a.x - b.x, a.y - b.y);
+      }
+    }, { passive: false });
+    canvas.addEventListener("touchmove", (e) => {
+      if (activeTouches.size === 2) {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          if (activeTouches.has(t.identifier)) {
+            activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+          }
+        }
+        const [a, b] = [...activeTouches.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        const delta = (pinchStartDist - dist) * 3; // zoom factor
+        pinchStartDist = dist;
+        call("on_wheel", delta);
+      }
+    }, { passive: false });
+    canvas.addEventListener("touchend", (e) => {
+      for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+    });
+    canvas.addEventListener("touchcancel", (e) => {
+      for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+    });
+
     // Keyboard (on window so canvas doesn't need focus)
     window.addEventListener("keydown", (e) => {
       call("on_key_down",
