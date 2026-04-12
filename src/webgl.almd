@@ -1,0 +1,219 @@
+// obsid.webgl — WebGL API bindings via @extern(wasm)
+//
+// Minimal WebGL 1.0 bindings for 3D rendering from Almide WASM.
+// JS host manages opaque handles (shader, program, buffer, texture, location).
+// See host/webgl.js for the reference implementation.
+
+// ── Constants ───────────────────────────────────────
+
+// Clear masks
+fn color_buffer_bit() -> Int = 16384
+fn depth_buffer_bit() -> Int = 256
+
+// Primitive types
+fn triangles() -> Int = 4
+fn lines() -> Int = 1
+fn points() -> Int = 0
+fn triangle_strip() -> Int = 5
+fn triangle_fan() -> Int = 6
+fn line_strip() -> Int = 3
+
+// Buffer targets
+fn array_buffer() -> Int = 34962
+fn element_array_buffer() -> Int = 34963
+
+// Usage hints
+fn static_draw() -> Int = 35044
+fn dynamic_draw() -> Int = 35048
+
+// Data types
+fn gl_float() -> Int = 5126
+fn unsigned_byte() -> Int = 5121
+fn unsigned_short() -> Int = 5123
+
+// Shader types
+fn vertex_shader() -> Int = 35633
+fn fragment_shader() -> Int = 35632
+
+// Enable caps
+fn depth_test() -> Int = 2929
+fn blend() -> Int = 3042
+fn cull_face_cap() -> Int = 2884
+
+// Blend functions
+fn src_alpha() -> Int = 770
+fn one_minus_src_alpha() -> Int = 771
+
+// Depth functions
+fn lequal() -> Int = 515
+fn less() -> Int = 513
+
+// Face culling
+fn front() -> Int = 1028
+fn back() -> Int = 1029
+
+// Texture
+fn texture_2d() -> Int = 3553
+fn texture0() -> Int = 33984
+fn texture_min_filter() -> Int = 10241
+fn texture_mag_filter() -> Int = 10240
+fn linear() -> Int = 9729
+fn nearest() -> Int = 9728
+fn clamp_to_edge() -> Int = 33071
+fn rgba() -> Int = 6408
+
+// ── State Storage (cross-function persistence) ──────
+
+@extern(wasm, "webgl", "set_state")
+fn set_state(slot: Int, value: Int) -> Unit
+
+@extern(wasm, "webgl", "get_state")
+fn get_state(slot: Int) -> Int
+
+// ── Context ─────────────────────────────────────────
+
+@extern(wasm, "webgl", "viewport")
+fn viewport(x: Int, y: Int, w: Int, h: Int) -> Unit
+
+@extern(wasm, "webgl", "clear_color")
+fn clear_color(r: Float, g: Float, b: Float, a: Float) -> Unit
+
+@extern(wasm, "webgl", "clear")
+fn clear(mask: Int) -> Unit
+
+@extern(wasm, "webgl", "enable")
+fn enable(cap: Int) -> Unit
+
+@extern(wasm, "webgl", "disable")
+fn disable(cap: Int) -> Unit
+
+@extern(wasm, "webgl", "depth_func")
+fn depth_func(func: Int) -> Unit
+
+@extern(wasm, "webgl", "blend_func")
+fn blend_func(src: Int, dst: Int) -> Unit
+
+@extern(wasm, "webgl", "cull_face")
+fn cull_face(mode: Int) -> Unit
+
+// ── Shaders ─────────────────────────────────────────
+
+@extern(wasm, "webgl", "create_shader")
+fn create_shader(type_: Int) -> Int
+
+@extern(wasm, "webgl", "shader_source")
+fn shader_source(shader: Int, source: String) -> Unit
+
+@extern(wasm, "webgl", "compile_shader")
+fn compile_shader(shader: Int) -> Int
+
+@extern(wasm, "webgl", "delete_shader")
+fn delete_shader(shader: Int) -> Unit
+
+// ── Programs ────────────────────────────────────────
+
+@extern(wasm, "webgl", "create_program")
+fn create_program() -> Int
+
+@extern(wasm, "webgl", "attach_shader")
+fn attach_shader(program: Int, shader: Int) -> Unit
+
+@extern(wasm, "webgl", "link_program")
+fn link_program(program: Int) -> Int
+
+@extern(wasm, "webgl", "use_program")
+fn use_program(program: Int) -> Unit
+
+@extern(wasm, "webgl", "delete_program")
+fn delete_program(program: Int) -> Unit
+
+// ── Attributes ──────────────────────────────────────
+
+@extern(wasm, "webgl", "get_attrib_location")
+fn get_attrib_location(program: Int, name: String) -> Int
+
+@extern(wasm, "webgl", "enable_vertex_attrib_array")
+fn enable_vertex_attrib_array(index: Int) -> Unit
+
+@extern(wasm, "webgl", "vertex_attrib_pointer")
+fn vertex_attrib_pointer(index: Int, size: Int, type_: Int, normalized: Int, stride: Int, offset: Int) -> Unit
+
+// ── Uniforms ────────────────────────────────────────
+
+@extern(wasm, "webgl", "get_uniform_location")
+fn get_uniform_location(program: Int, name: String) -> Int
+
+@extern(wasm, "webgl", "uniform1i")
+fn uniform1i(location: Int, v: Int) -> Unit
+
+@extern(wasm, "webgl", "uniform1f")
+fn uniform1f(location: Int, v: Float) -> Unit
+
+@extern(wasm, "webgl", "uniform2f")
+fn uniform2f(location: Int, x: Float, y: Float) -> Unit
+
+@extern(wasm, "webgl", "uniform3f")
+fn uniform3f(location: Int, x: Float, y: Float, z: Float) -> Unit
+
+@extern(wasm, "webgl", "uniform4f")
+fn uniform4f(location: Int, x: Float, y: Float, z: Float, w: Float) -> Unit
+
+@extern(wasm, "webgl", "uniform_matrix4fv")
+fn uniform_matrix4fv(location: Int, data: List[Float]) -> Unit
+
+// ── Buffers ─────────────────────────────────────────
+
+@extern(wasm, "webgl", "create_buffer")
+fn create_buffer() -> Int
+
+@extern(wasm, "webgl", "bind_buffer")
+fn bind_buffer(target: Int, buffer: Int) -> Unit
+
+@extern(wasm, "webgl", "buffer_data_f32")
+fn buffer_data_f32(target: Int, data: List[Float], usage: Int) -> Unit
+
+@extern(wasm, "webgl", "buffer_data_u16")
+fn buffer_data_u16(target: Int, data: List[Int], usage: Int) -> Unit
+
+// ── Textures ────────────────────────────────────────
+
+@extern(wasm, "webgl", "create_texture")
+fn create_texture() -> Int
+
+@extern(wasm, "webgl", "bind_texture")
+fn bind_texture(target: Int, texture: Int) -> Unit
+
+@extern(wasm, "webgl", "tex_parameteri")
+fn tex_parameteri(target: Int, pname: Int, param: Int) -> Unit
+
+@extern(wasm, "webgl", "active_texture")
+fn active_texture(unit: Int) -> Unit
+
+// ── Drawing ─────────────────────────────────────────
+
+@extern(wasm, "webgl", "draw_arrays")
+fn draw_arrays(mode: Int, first: Int, count: Int) -> Unit
+
+@extern(wasm, "webgl", "draw_elements")
+fn draw_elements(mode: Int, count: Int, type_: Int, offset: Int) -> Unit
+
+// ── Helpers ─────────────────────────────────────────
+
+fn build_shader(type_: Int, source: String) -> Int = {
+  let s = create_shader(type_)
+  shader_source(s, source)
+  let _ = compile_shader(s)
+  s
+}
+
+fn build_program(vs_source: String, fs_source: String) -> Int = {
+  let vs = build_shader(vertex_shader(), vs_source)
+  let fs = build_shader(fragment_shader(), fs_source)
+  let p = create_program()
+  attach_shader(p, vs)
+  attach_shader(p, fs)
+  let _ = link_program(p)
+  delete_shader(vs)
+  delete_shader(fs)
+  p
+}

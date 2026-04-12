@@ -1,7 +1,11 @@
-// obsid — generic mesh rendering foundation for Almide
+// obsid — Graphics runtime for Almide
 //
-// WASM builds vertex/index data using bytes.set_f32_le / bytes.set_u16_le
-// and passes pointers via bytes.data_ptr. Zero-copy upload to GPU.
+// Unified package for browser graphics via WASM:
+//   obsid          3D mesh renderer (create_mesh, set_camera, orbit camera)
+//   obsid.canvas   Canvas 2D API bindings (@extern(wasm, "canvas", ...))
+//   obsid.webgl    WebGL 1.0 API bindings (@extern(wasm, "webgl", ...))
+//
+// Pure math (vec3, mat4, color) lives in the `lumen` package.
 //
 // Vertex format: pos[3] f32 + norm[3] f32 + color[3] f32 = 36 bytes
 // Index format: u16

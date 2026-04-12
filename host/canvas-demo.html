@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Almide Canvas</title>
+  <style>
+    body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #1a1a2e; }
+    canvas { border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="800" height="600"></canvas>
+  <script src="canvas.js"></script>
+  <script>
+    AlmideCanvas.load("app.wasm", "canvas")
+      .catch(e => console.error("Failed to load:", e));
+  </script>
+</body>
+</html>

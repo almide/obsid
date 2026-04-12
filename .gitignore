@@ -2,3 +2,4 @@ target/
 *.wasm
 .almide/
 .almide/cache/
+*.wasm

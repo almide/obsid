@@ -1,0 +1,185 @@
+// obsid.canvas — HTML Canvas 2D API bindings via @extern(wasm)
+//
+// Requires a JS host that provides the "canvas" import module.
+// See host/canvas.js for the reference implementation.
+//
+//   import canvas
+//
+//   effect fn main() -> Unit = {
+//     canvas.set_fill_style("#4A90D9")
+//     canvas.fill_rect(10.0, 10.0, 200.0, 100.0)
+//   }
+
+// ── Constants ───────────────────────────────────────
+
+fn pi() -> Float = 3.141592653589793
+fn tau() -> Float = 6.283185307179586
+
+// ── Canvas Control ──────────────────────────────────
+
+@extern(wasm, "canvas", "set_size")
+fn set_size(width: Float, height: Float) -> Unit
+
+// ── Drawing Rectangles ──────────────────────────────
+
+@extern(wasm, "canvas", "fill_rect")
+fn fill_rect(x: Float, y: Float, w: Float, h: Float) -> Unit
+
+@extern(wasm, "canvas", "stroke_rect")
+fn stroke_rect(x: Float, y: Float, w: Float, h: Float) -> Unit
+
+@extern(wasm, "canvas", "clear_rect")
+fn clear_rect(x: Float, y: Float, w: Float, h: Float) -> Unit
+
+// ── Styles ──────────────────────────────────────────
+
+@extern(wasm, "canvas", "set_fill_style")
+fn set_fill_style(color: String) -> Unit
+
+@extern(wasm, "canvas", "set_stroke_style")
+fn set_stroke_style(color: String) -> Unit
+
+@extern(wasm, "canvas", "set_line_width")
+fn set_line_width(width: Float) -> Unit
+
+@extern(wasm, "canvas", "set_line_cap")
+fn set_line_cap(cap: String) -> Unit
+
+@extern(wasm, "canvas", "set_line_join")
+fn set_line_join(join: String) -> Unit
+
+@extern(wasm, "canvas", "set_global_alpha")
+fn set_global_alpha(alpha: Float) -> Unit
+
+@extern(wasm, "canvas", "set_shadow_color")
+fn set_shadow_color(color: String) -> Unit
+
+@extern(wasm, "canvas", "set_shadow_blur")
+fn set_shadow_blur(blur: Float) -> Unit
+
+@extern(wasm, "canvas", "set_shadow_offset")
+fn set_shadow_offset(x: Float, y: Float) -> Unit
+
+// ── Paths ───────────────────────────────────────────
+
+@extern(wasm, "canvas", "begin_path")
+fn begin_path() -> Unit
+
+@extern(wasm, "canvas", "close_path")
+fn close_path() -> Unit
+
+@extern(wasm, "canvas", "move_to")
+fn move_to(x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "line_to")
+fn line_to(x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "arc")
+fn arc(cx: Float, cy: Float, r: Float, start: Float, end: Float) -> Unit
+
+@extern(wasm, "canvas", "arc_to")
+fn arc_to(x1: Float, y1: Float, x2: Float, y2: Float, r: Float) -> Unit
+
+@extern(wasm, "canvas", "bezier_curve_to")
+fn bezier_curve_to(cp1x: Float, cp1y: Float, cp2x: Float, cp2y: Float, x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "quadratic_curve_to")
+fn quadratic_curve_to(cpx: Float, cpy: Float, x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "rect")
+fn rect(x: Float, y: Float, w: Float, h: Float) -> Unit
+
+@extern(wasm, "canvas", "fill")
+fn fill() -> Unit
+
+@extern(wasm, "canvas", "stroke")
+fn stroke() -> Unit
+
+@extern(wasm, "canvas", "clip")
+fn clip() -> Unit
+
+// ── Text ────────────────────────────────────────────
+
+@extern(wasm, "canvas", "set_font")
+fn set_font(font: String) -> Unit
+
+@extern(wasm, "canvas", "set_text_align")
+fn set_text_align(align: String) -> Unit
+
+@extern(wasm, "canvas", "set_text_baseline")
+fn set_text_baseline(baseline: String) -> Unit
+
+@extern(wasm, "canvas", "fill_text")
+fn fill_text(text: String, x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "stroke_text")
+fn stroke_text(text: String, x: Float, y: Float) -> Unit
+
+// ── Transforms ──────────────────────────────────────
+
+@extern(wasm, "canvas", "save")
+fn save() -> Unit
+
+@extern(wasm, "canvas", "restore")
+fn restore() -> Unit
+
+@extern(wasm, "canvas", "translate")
+fn translate(x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "rotate")
+fn rotate(angle: Float) -> Unit
+
+@extern(wasm, "canvas", "scale")
+fn scale(x: Float, y: Float) -> Unit
+
+@extern(wasm, "canvas", "reset_transform")
+fn reset_transform() -> Unit
+
+// ── Convenience Helpers ─────────────────────────────
+
+fn clear(width: Float, height: Float) -> Unit =
+  clear_rect(0.0, 0.0, width, height)
+
+fn circle(cx: Float, cy: Float, r: Float) -> Unit = {
+  begin_path()
+  arc(cx, cy, r, 0.0, tau())
+  close_path()
+}
+
+fn filled_circle(cx: Float, cy: Float, r: Float, color: String) -> Unit = {
+  set_fill_style(color)
+  circle(cx, cy, r)
+  fill()
+}
+
+fn stroked_circle(cx: Float, cy: Float, r: Float, color: String) -> Unit = {
+  set_stroke_style(color)
+  circle(cx, cy, r)
+  stroke()
+}
+
+fn filled_rect(x: Float, y: Float, w: Float, h: Float, color: String) -> Unit = {
+  set_fill_style(color)
+  fill_rect(x, y, w, h)
+}
+
+fn stroked_rect(x: Float, y: Float, w: Float, h: Float, color: String, width: Float) -> Unit = {
+  set_stroke_style(color)
+  set_line_width(width)
+  stroke_rect(x, y, w, h)
+}
+
+fn text(content: String, x: Float, y: Float, font: String, color: String) -> Unit = {
+  set_font(font)
+  set_fill_style(color)
+  fill_text(content, x, y)
+}
+
+fn line(x1: Float, y1: Float, x2: Float, y2: Float, color: String, width: Float) -> Unit = {
+  set_stroke_style(color)
+  set_line_width(width)
+  begin_path()
+  move_to(x1, y1)
+  line_to(x2, y2)
+  stroke()
+}

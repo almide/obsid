@@ -1,0 +1,105 @@
+// Rotating colored cube — WebGL demo
+import self.webgl as webgl
+import lumen.mat4 as mat
+
+let vs_source = """
+  attribute vec3 a_position;
+  attribute vec3 a_color;
+  uniform mat4 u_mvp;
+  varying vec3 v_color;
+  void main() {
+    gl_Position = u_mvp * vec4(a_position, 1.0);
+    v_color = a_color;
+  }
+  """
+
+let fs_source = """
+  precision mediump float;
+  varying vec3 v_color;
+  void main() {
+    gl_FragColor = vec4(v_color, 1.0);
+  }
+  """
+
+effect fn main() -> Unit = {
+  let program = webgl.build_program(vs_source, fs_source)
+  webgl.use_program(program)
+
+  let mvp_loc = webgl.get_uniform_location(program, "u_mvp")
+  webgl.set_state(0, mvp_loc)
+
+  let a_pos = webgl.get_attrib_location(program, "a_position")
+  let a_col = webgl.get_attrib_location(program, "a_color")
+
+  // Cube: 24 vertices (4 per face), each with position + color
+  let vertices: List[Float] = [
+    -1.0, -1.0,  1.0,  0.91, 0.30, 0.24,
+     1.0, -1.0,  1.0,  0.91, 0.30, 0.24,
+     1.0,  1.0,  1.0,  0.91, 0.30, 0.24,
+    -1.0,  1.0,  1.0,  0.91, 0.30, 0.24,
+    -1.0, -1.0, -1.0,  0.10, 0.74, 0.61,
+     1.0, -1.0, -1.0,  0.10, 0.74, 0.61,
+     1.0,  1.0, -1.0,  0.10, 0.74, 0.61,
+    -1.0,  1.0, -1.0,  0.10, 0.74, 0.61,
+    -1.0,  1.0, -1.0,  0.95, 0.77, 0.06,
+     1.0,  1.0, -1.0,  0.95, 0.77, 0.06,
+     1.0,  1.0,  1.0,  0.95, 0.77, 0.06,
+    -1.0,  1.0,  1.0,  0.95, 0.77, 0.06,
+    -1.0, -1.0, -1.0,  0.56, 0.27, 0.68,
+     1.0, -1.0, -1.0,  0.56, 0.27, 0.68,
+     1.0, -1.0,  1.0,  0.56, 0.27, 0.68,
+    -1.0, -1.0,  1.0,  0.56, 0.27, 0.68,
+     1.0, -1.0, -1.0,  0.16, 0.50, 0.73,
+     1.0,  1.0, -1.0,  0.16, 0.50, 0.73,
+     1.0,  1.0,  1.0,  0.16, 0.50, 0.73,
+     1.0, -1.0,  1.0,  0.16, 0.50, 0.73,
+    -1.0, -1.0, -1.0,  0.15, 0.68, 0.38,
+    -1.0,  1.0, -1.0,  0.15, 0.68, 0.38,
+    -1.0,  1.0,  1.0,  0.15, 0.68, 0.38,
+    -1.0, -1.0,  1.0,  0.15, 0.68, 0.38,
+  ]
+
+  let indices: List[Int] = [
+    0,  1,  2,   0,  2,  3,
+    4,  6,  5,   4,  7,  6,
+    8,  9,  10,  8,  10, 11,
+    12, 14, 13,  12, 15, 14,
+    16, 17, 18,  16, 18, 19,
+    20, 22, 21,  20, 23, 22,
+  ]
+
+  let vbo = webgl.create_buffer()
+  webgl.bind_buffer(webgl.array_buffer(), vbo)
+  webgl.buffer_data_f32(webgl.array_buffer(), vertices, webgl.static_draw())
+
+  let ibo = webgl.create_buffer()
+  webgl.bind_buffer(webgl.element_array_buffer(), ibo)
+  webgl.buffer_data_u16(webgl.element_array_buffer(), indices, webgl.static_draw())
+
+  // stride = 6 floats * 4 bytes = 24
+  webgl.vertex_attrib_pointer(a_pos, 3, webgl.gl_float(), 0, 24, 0)
+  webgl.enable_vertex_attrib_array(a_pos)
+  webgl.vertex_attrib_pointer(a_col, 3, webgl.gl_float(), 0, 24, 12)
+  webgl.enable_vertex_attrib_array(a_col)
+
+  webgl.enable(webgl.depth_test())
+  webgl.depth_func(webgl.lequal())
+  webgl.clear_color(0.08, 0.08, 0.12, 1.0)
+}
+
+fn render_frame(time: Float) -> Unit = {
+  webgl.clear(webgl.color_buffer_bit() + webgl.depth_buffer_bit())
+
+  let angle = time * 0.7
+  let model = mat.identity()
+    |> mat.rotate_y(angle)
+    |> mat.rotate_x(angle * 0.6)
+
+  let view = mat.look_at(0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+  let proj = mat.perspective(0.785, 1.333, 0.1, 100.0)
+  let mvp = mat.multiply(proj, mat.multiply(view, model))
+
+  let mvp_loc = webgl.get_state(0)
+  webgl.uniform_matrix4fv(mvp_loc, mvp)
+  webgl.draw_elements(webgl.triangles(), 36, webgl.unsigned_short(), 0)
+}

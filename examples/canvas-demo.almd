@@ -1,0 +1,60 @@
+import self.canvas as canvas
+
+effect fn main() -> Unit = {
+  // Background
+  canvas.filled_rect(0.0, 0.0, 800.0, 600.0, "#16213e")
+
+  // Grid lines
+  for i in 0..16 {
+    let x = int.to_float(i) * 50.0
+    canvas.line(x, 0.0, x, 600.0, "#1a1a4e", 0.5)
+  }
+  for i in 0..12 {
+    let y = int.to_float(i) * 50.0
+    canvas.line(0.0, y, 800.0, y, "#1a1a4e", 0.5)
+  }
+
+  // Bar chart
+  let bars = [
+    ("Jan", 120.0, "#e94560"),
+    ("Feb", 180.0, "#0f3460"),
+    ("Mar", 90.0, "#533483"),
+    ("Apr", 210.0, "#e94560"),
+    ("May", 150.0, "#0f3460"),
+    ("Jun", 240.0, "#533483"),
+  ]
+  let bar_width = 80.0
+  let base_y = 450.0
+  bars |> list.enumerate |> list.map((entry) => {
+    let (i, bar) = entry
+    let (label, height, color) = bar
+    let x = 60.0 + int.to_float(i) * 115.0
+
+    // Bar
+    canvas.filled_rect(x, base_y - height, bar_width, height, color)
+
+    // Label
+    canvas.set_text_align("center")
+    canvas.text(label, x + bar_width / 2.0, base_y + 25.0, "14px sans-serif", "#8899aa")
+
+    // Value
+    canvas.text(
+      int.to_string(float.to_int(height)),
+      x + bar_width / 2.0,
+      base_y - height - 10.0,
+      "12px sans-serif",
+      "#ffffff",
+    )
+    0
+  })
+
+  // Title
+  canvas.set_text_align("center")
+  canvas.text("Monthly Revenue", 400.0, 50.0, "bold 28px sans-serif", "#ffffff")
+
+  // Decorative circles
+  canvas.set_global_alpha(0.3)
+  canvas.filled_circle(700.0, 100.0, 40.0, "#e94560")
+  canvas.filled_circle(720.0, 140.0, 25.0, "#533483")
+  canvas.set_global_alpha(1.0)
+}
