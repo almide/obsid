@@ -1,6 +1,6 @@
 //! Native host for the obsid graphics runtime, as an embeddable library.
 //!
-//! Other hosts (e.g. `aituber-poc`) wrap this with their own wasmtime `Store`
+//! Other hosts (e.g. `animula`) wrap this with their own wasmtime `Store`
 //! data type and compose additional import namespaces on top of `obsid.*`.
 
 pub mod gpu;

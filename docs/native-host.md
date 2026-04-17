@@ -170,7 +170,7 @@ Checklist:
 - [x] `render` import records and submits a frame.
 - [x] Event forwarders: pointer + wheel (enough for orbit camera).
 - [x] `browser/` directory rename + README update.
-- [x] Library split (lib + bin) so downstream hosts (aituber-poc) can embed the renderer without duplicating winit / wasmtime plumbing.
+- [x] Library split (lib + bin) so downstream hosts (animula) can embed the renderer without duplicating winit / wasmtime plumbing.
 
 **Out of scope for Phase 1:** textures, point lights, transparency sort,
 keyboard, quality presets beyond one, window resize. Each lands as a small
