@@ -44,18 +44,18 @@ jobs:
 
       - name: Build all examples
         run: |
-          mkdir -p host/examples
-          almide build src/main.almd           --target wasm -o host/examples/heightmap.wasm
-          almide build examples/triangle.almd  --target wasm -o host/examples/triangle.wasm
-          almide build examples/sphere.almd    --target wasm -o host/examples/sphere.wasm
-          almide build examples/torus.almd     --target wasm -o host/examples/torus.wasm
-          almide build examples/checker.almd   --target wasm -o host/examples/checker.wasm
-          ls -la host/examples/
+          mkdir -p host/browser/examples
+          almide build src/main.almd           --target wasm -o host/browser/examples/heightmap.wasm
+          almide build examples/triangle.almd  --target wasm -o host/browser/examples/triangle.wasm
+          almide build examples/sphere.almd    --target wasm -o host/browser/examples/sphere.wasm
+          almide build examples/torus.almd     --target wasm -o host/browser/examples/torus.wasm
+          almide build examples/checker.almd   --target wasm -o host/browser/examples/checker.wasm
+          ls -la host/browser/examples/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: host
+          path: host/browser
 
   deploy:
     needs: build

@@ -1,7 +1,7 @@
 // obsid.canvas — HTML Canvas 2D API bindings via @extern(wasm)
 //
 // Requires a JS host that provides the "canvas" import module.
-// See host/canvas.js for the reference implementation.
+// See host/browser/canvas.js for the reference implementation.
 //
 //   import canvas
 //

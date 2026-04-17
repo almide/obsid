@@ -18,19 +18,19 @@ Each example produces its own `app.wasm`. Build one at a time and serve:
 
 ```bash
 # Heightmap (default)
-almide build src/main.almd --target wasm -o host/app.wasm
+almide build src/main.almd --target wasm -o host/browser/app.wasm
 
 # Triangle
-almide build examples/triangle.almd --target wasm -o host/app.wasm
+almide build examples/triangle.almd --target wasm -o host/browser/app.wasm
 
 # Sphere
-almide build examples/sphere.almd --target wasm -o host/app.wasm
+almide build examples/sphere.almd --target wasm -o host/browser/app.wasm
 
 # Torus
-almide build examples/torus.almd --target wasm -o host/app.wasm
+almide build examples/torus.almd --target wasm -o host/browser/app.wasm
 
 # Serve
-cd host && python3 -m http.server 8765
+cd host/browser && python3 -m http.server 8765
 # Open http://localhost:8765
 ```
 
