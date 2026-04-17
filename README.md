@@ -58,6 +58,16 @@ almide build examples/cube.almd --target wasm
 almide build examples/sphere.almd --target wasm
 ```
 
+## Running natively
+
+The Rust host under `host/native/` runs the same `.wasm` on macOS /
+Windows / Linux via wasmtime + wgpu + winit. See [`host/native/README.md`](host/native/README.md)
+and [`docs/native-host.md`](docs/native-host.md) for details.
+
+```bash
+cd host/native && cargo run --release -- ../browser/examples/sphere.wasm
+```
+
 ## Structure
 
 ```
@@ -66,9 +76,11 @@ src/
   canvas.almd       Canvas 2D API bindings
   webgl.almd        WebGL 1.0 API bindings
 host/
-  obsid.js          3D renderer JS runtime
-  canvas.js         Canvas 2D JS glue
-  webgl.js          WebGL JS glue
+  browser/          Browser host (JS + WebGL)
+    obsid.js        3D renderer JS runtime
+    canvas.js       Canvas 2D JS glue
+    webgl.js        WebGL JS glue
+  native/           Native host (Rust + wasmtime + wgpu + winit)
 examples/
   canvas-demo.almd  Canvas 2D drawing
   cube.almd         WebGL rotating cube

@@ -145,14 +145,16 @@ table stakes we already meet. Cross-host is a strategic bet depending on C2.
 |---|---|---|---|
 | D1 | Layering (§A) | A1 / A2 / A3 | **A3** (opt-in `gfx`) |
 | D2 | obsid scope (§B) | B1 / B2 | **B1** (stay 3D-only) |
-| D3 | Backend (§C) | C1 / C2 | **C2** (abstract host, native later) |
+| D3 | Backend (§C) | C1 / C2 | **C2** — committed (see `native-host.md`) |
 | D4 | `wasm-canvas` (§D) | D1 / D2 / D3 | **D2** (coexist, differentiated) |
 | D5 | Text (§E) | E1 / E2 / E3 | **E2** (`almide/text` standalone, SDF) |
 | D6 | v1.0 order (§F) | — | **`wasm-webgl` → `obsid` → `canvas2d`** |
 | D7 | Top axes (§G) | 1–2 axes | **tiny binary + LLM authoring**, cross-host as a bonus |
 
-None of the tentative picks are committed. They are starting positions for
-the next round of discussion.
+D3 is committed as of 2026-04-17: the `@extern(wasm, "obsid", …)` contract is
+the authoritative host interface, and a native host (wasmtime + wgpu + winit,
+macOS-first) is being built under `host/native/`. See `native-host.md` for
+the full design. The remaining picks stay tentative.
 
 ---
 

@@ -1,0 +1,23 @@
+[package]
+name = "obsid-native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Native host for the obsid graphics runtime (wasmtime + wgpu + winit)"
+
+[lib]
+name = "obsid_native"
+path = "src/lib.rs"
+
+[[bin]]
+name = "obsid-native"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
+wasmtime = "29"
+wasmtime-wasi = "29"
+wgpu = "22"
+winit = "0.30"
