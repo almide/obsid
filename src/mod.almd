@@ -67,6 +67,22 @@ fn clear_mesh_texture(mesh_id: Int) -> Unit
 @extern(wasm, "obsid", "delete_texture")
 fn delete_texture(id: Int) -> Unit
 
+@extern(wasm, "obsid", "upload_texture_raw")
+fn upload_texture_raw(id: Int, data_ptr: Int, data_len: Int) -> Unit
+
+@extern(wasm, "obsid", "update_mesh_verts")
+fn update_mesh_verts(id: Int, vert_ptr: Int, vert_count: Int) -> Unit
+
+@extern(wasm, "obsid", "set_mesh_toon")
+fn set_mesh_toon(mesh_id: Int, shade_r: Float, shade_g: Float, shade_b: Float, threshold: Float) -> Unit
+
+// Note: named create_shader_program to avoid collision with webgl.create_program
+@extern(wasm, "obsid", "create_program")
+fn create_shader_program(id: Int, frag_ptr: Int, frag_len: Int) -> Unit
+
+@extern(wasm, "obsid", "set_mesh_program")
+fn set_mesh_shader(mesh_id: Int, program_id: Int) -> Unit
+
 // ── Camera ──────────────────────────────────────────
 
 @extern(wasm, "obsid", "set_camera")
